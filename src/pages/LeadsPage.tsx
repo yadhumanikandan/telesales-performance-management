@@ -16,6 +16,7 @@ import { LeadAnalytics } from '@/components/leads/LeadAnalytics';
 import { LeadFollowUpList } from '@/components/leads/LeadFollowUpList';
 import { LeadActivityTimeline } from '@/components/leads/LeadActivityTimeline';
 import { LeadSourceAnalytics } from '@/components/leads/LeadSourceAnalytics';
+import { BulkLeadImport } from '@/components/leads/BulkLeadImport';
 import { 
   Target, 
   Phone, 
@@ -69,7 +70,7 @@ export const LeadsPage = () => {
     bankName: 'RAK' as BankName,
   });
 
-  const { leads, stats, isLoading, updateLeadStatus, updateLeadDetails, isUpdating } = useLeads(statusFilter);
+  const { leads, stats, isLoading, refetch, updateLeadStatus, updateLeadDetails, isUpdating } = useLeads(statusFilter);
   const { recalculateScores, isRecalculating, getScoreBreakdown } = useLeadScoring();
 
   const filteredLeads = leads.filter(lead => {
@@ -231,6 +232,7 @@ export const LeadsPage = () => {
               Sources
             </Button>
           </div>
+          <BulkLeadImport onImportComplete={() => refetch()} />
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
