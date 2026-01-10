@@ -1,54 +1,77 @@
 import React from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Target, ThumbsUp, ThumbsDown, PhoneOff, MessageSquare } from 'lucide-react';
+import { Phone, Upload } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { StatsGrid } from '@/components/dashboard/StatsGrid';
+import { CallsChart } from '@/components/dashboard/CallsChart';
+import { ConversionChart } from '@/components/dashboard/ConversionChart';
+import { TeamLeaderboard } from '@/components/dashboard/TeamLeaderboard';
+import { usePerformanceData } from '@/hooks/usePerformanceData';
+import { Link } from 'react-router-dom';
 
 export const Dashboard: React.FC = () => {
   const { profile } = useAuth();
-
-  const stats = [
-    { label: 'Calls Today', value: 42, icon: Phone, color: 'bg-primary text-primary-foreground' },
-    { label: 'Interested', value: 8, icon: ThumbsUp, color: 'bg-success text-success-foreground' },
-    { label: 'Not Interested', value: 12, icon: ThumbsDown, color: 'bg-destructive text-destructive-foreground' },
-    { label: 'Not Answered', value: 22, icon: PhoneOff, color: 'bg-warning text-warning-foreground' },
-    { label: 'Leads Generated', value: 8, icon: Target, color: 'bg-accent text-accent-foreground' },
-    { label: 'WhatsApp Sent', value: 8, icon: MessageSquare, color: 'bg-info text-info-foreground' },
-  ];
+  const { myStats, hourlyData, leaderboard, isLoading, refetch } = usePerformanceData();
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div>
-        <h1 className="text-3xl font-bold">Welcome back, {profile?.full_name?.split(' ')[0] || 'Agent'}!</h1>
-        <p className="text-muted-foreground mt-1">Here's your performance overview for today</p>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">
+            Welcome back, {profile?.full_name?.split(' ')[0] || 'Agent'}!
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Here's your real-time performance overview
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/upload">
+              <Upload className="w-4 h-4" />
+              Upload Contacts
+            </Link>
+          </Button>
+          <Button asChild className="gap-2">
+            <Link to="/call-list">
+              <Phone className="w-4 h-4" />
+              Start Calling
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat, index) => (
-          <Card key={index} className="hover:shadow-md transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{stat.label}</CardTitle>
-              <div className={`p-2 rounded-lg ${stat.color}`}>
-                <stat.icon className="w-4 h-4" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
+      {/* Stats Grid */}
+      <StatsGrid stats={myStats} isLoading={isLoading} onRefresh={refetch} />
+
+      {/* Charts Row */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CallsChart data={hourlyData} isLoading={isLoading} />
+        <ConversionChart stats={myStats} isLoading={isLoading} />
       </div>
 
-      <Card>
+      {/* Team Leaderboard */}
+      <TeamLeaderboard data={leaderboard} isLoading={isLoading} />
+
+      {/* Quick Actions Card */}
+      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
+          <CardTitle className="text-lg">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent className="flex gap-4">
-          <a href="/call-list" className="feedback-btn-interested">
-            <Phone className="w-5 h-5" /> Start Calling
-          </a>
-          <a href="/upload" className="feedback-btn bg-primary text-primary-foreground hover:bg-primary/90">
-            Upload Contacts
-          </a>
+        <CardContent className="flex flex-wrap gap-3">
+          <Button asChild variant="default" className="gap-2">
+            <Link to="/call-list">
+              <Phone className="w-4 h-4" />
+              Continue Calling
+            </Link>
+          </Button>
+          <Button asChild variant="secondary" className="gap-2">
+            <Link to="/upload">
+              <Upload className="w-4 h-4" />
+              Upload New Contacts
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     </div>
