@@ -150,6 +150,18 @@ export function useCustomFilterPresets(storageKey: string) {
     , customPresets[0]);
   }, [customPresets]);
 
+  const resetUsageStats = useCallback(() => {
+    setCustomPresets(prev => {
+      const updated = prev.map(p => ({
+        ...p,
+        useCount: 0,
+        lastUsedAt: undefined,
+      }));
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      return updated;
+    });
+  }, [storageKey]);
+
   const exportPresets = useCallback(() => {
     const exportData: ExportedPresets = {
       version: 1,
@@ -286,6 +298,7 @@ export function useCustomFilterPresets(storageKey: string) {
     trackPresetUsage,
     getPresetAnalytics,
     getMostUsedPreset,
+    resetUsageStats,
     exportPresets,
     importPresets,
     importFromData,
