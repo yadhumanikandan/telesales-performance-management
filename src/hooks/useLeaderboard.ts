@@ -31,9 +31,12 @@ export interface TeamStats {
   avgConversionRate: number;
 }
 
+export type LeadStatusFilter = 'all' | 'matched' | 'unmatched';
+
 interface UseLeaderboardOptions {
   timePeriod: TimePeriod;
   teamFilter?: string | null;
+  leadStatusFilter?: LeadStatusFilter;
 }
 
 const getDateRange = (period: TimePeriod): { start: Date | null; end: Date | null } => {
@@ -78,9 +81,9 @@ const getDateRange = (period: TimePeriod): { start: Date | null; end: Date | nul
   }
 };
 
-export const useLeaderboard = ({ timePeriod, teamFilter }: UseLeaderboardOptions) => {
+export const useLeaderboard = ({ timePeriod, teamFilter, leadStatusFilter = 'all' }: UseLeaderboardOptions) => {
   const { data: leaderboardData, isLoading } = useQuery({
-    queryKey: ['leaderboard', timePeriod, teamFilter],
+    queryKey: ['leaderboard', timePeriod, teamFilter, leadStatusFilter],
     queryFn: async () => {
       const { start, end } = getDateRange(timePeriod);
       
@@ -178,9 +181,18 @@ export const useLeaderboard = ({ timePeriod, teamFilter }: UseLeaderboardOptions
       // Build leaderboard
       let agents: LeaderboardAgent[] = profiles
         ?.filter(p => {
+          // Team filter
           if (teamFilter && teamFilter !== 'all') {
-            return p.supervisor_id === teamFilter;
+            if (p.supervisor_id !== teamFilter) return false;
           }
+          
+          // Lead status filter
+          if (leadStatusFilter !== 'all') {
+            const stats = agentStats.get(p.id) || { totalCalls: 0, interestedCalls: 0, leadsGenerated: 0 };
+            if (leadStatusFilter === 'matched' && stats.leadsGenerated === 0) return false;
+            if (leadStatusFilter === 'unmatched' && stats.leadsGenerated > 0) return false;
+          }
+          
           return true;
         })
         .map(p => {

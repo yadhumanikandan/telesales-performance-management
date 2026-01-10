@@ -22,8 +22,9 @@ import {
   Calendar,
   ArrowUp,
   ArrowDown,
+  Filter,
 } from 'lucide-react';
-import { useLeaderboard, TimePeriod, LeaderboardAgent, TeamStats } from '@/hooks/useLeaderboard';
+import { useLeaderboard, TimePeriod, LeaderboardAgent, TeamStats, LeadStatusFilter } from '@/hooks/useLeaderboard';
 import { cn } from '@/lib/utils';
 
 const RankBadge: React.FC<{ rank: number }> = ({ rank }) => {
@@ -205,10 +206,12 @@ const TeamComparisonCard: React.FC<{ teams: TeamStats[] }> = ({ teams }) => {
 export const Leaderboard: React.FC = () => {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('this_week');
   const [teamFilter, setTeamFilter] = useState<string>('all');
+  const [leadStatusFilter, setLeadStatusFilter] = useState<LeadStatusFilter>('all');
   
   const { agents, teamStats, totalAgents, periodLabel, isLoading } = useLeaderboard({
     timePeriod,
     teamFilter: teamFilter === 'all' ? null : teamFilter,
+    leadStatusFilter,
   });
 
   if (isLoading) {
@@ -255,6 +258,18 @@ export const Leaderboard: React.FC = () => {
               <SelectItem value="last_month">Last Month</SelectItem>
               <SelectItem value="six_months">6 Months</SelectItem>
               <SelectItem value="all_time">All Time</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={leadStatusFilter} onValueChange={(v) => setLeadStatusFilter(v as LeadStatusFilter)}>
+            <SelectTrigger className="w-[160px]">
+              <Filter className="w-4 h-4 mr-2" />
+              <SelectValue placeholder="Lead status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Leads</SelectItem>
+              <SelectItem value="matched">Matched (Has Leads)</SelectItem>
+              <SelectItem value="unmatched">Unmatched (No Leads)</SelectItem>
             </SelectContent>
           </Select>
           
