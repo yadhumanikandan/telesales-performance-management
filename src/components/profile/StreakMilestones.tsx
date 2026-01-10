@@ -5,6 +5,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Award, Lock, Sparkles, TrendingUp } from 'lucide-react';
 import { useStreakMilestones, EarnedMilestone, StreakMilestone } from '@/hooks/useStreakMilestones';
+import { useMilestoneNotifications } from '@/hooks/useMilestoneNotifications';
 import { GoalStreak, GoalMetric } from '@/hooks/useAgentGoals';
 import { cn } from '@/lib/utils';
 
@@ -133,6 +134,9 @@ const UpcomingMilestone: React.FC<{
 
 export const StreakMilestones: React.FC<StreakMilestonesProps> = ({ streaks }) => {
   const { earnedMilestones, nextMilestones, totalBadges, legendaryCount, epicCount } = useStreakMilestones(streaks);
+  
+  // Initialize milestone notifications - will show toast when new badges are earned
+  useMilestoneNotifications(earnedMilestones);
 
   if (streaks.length === 0 && earnedMilestones.length === 0) {
     return null;
