@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_goals: {
+        Row: {
+          agent_id: string
+          created_at: string
+          end_date: string
+          goal_type: string
+          id: string
+          is_active: boolean
+          metric: string
+          start_date: string
+          target_value: number
+          updated_at: string
+        }
+        Insert: {
+          agent_id: string
+          created_at?: string
+          end_date: string
+          goal_type: string
+          id?: string
+          is_active?: boolean
+          metric: string
+          start_date: string
+          target_value: number
+          updated_at?: string
+        }
+        Update: {
+          agent_id?: string
+          created_at?: string
+          end_date?: string
+          goal_type?: string
+          id?: string
+          is_active?: boolean
+          metric?: string
+          start_date?: string
+          target_value?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       approved_call_list: {
         Row: {
           agent_id: string

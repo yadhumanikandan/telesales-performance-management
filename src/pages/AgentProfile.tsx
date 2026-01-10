@@ -38,6 +38,7 @@ import { format } from 'date-fns';
 import { PerformanceCertificate } from '@/components/profile/PerformanceCertificate';
 import { AchievementGrid } from '@/components/profile/AchievementGrid';
 import { WeeklyReport } from '@/components/profile/WeeklyReport';
+import { GoalTracker } from '@/components/profile/GoalTracker';
 
 const chartConfig = {
   calls: { label: 'Calls', color: 'hsl(var(--primary))' },
@@ -307,6 +308,9 @@ export const AgentProfile: React.FC = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Goal Tracker */}
+      <GoalTracker />
 
       {/* Weekly Performance Report */}
       <WeeklyReport />
