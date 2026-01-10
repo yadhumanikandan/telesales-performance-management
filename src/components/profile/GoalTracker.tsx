@@ -25,6 +25,7 @@ import {
 import { useAgentGoals, GoalType, GoalMetric, GoalWithProgress, GoalStreak, CreateGoalInput } from '@/hooks/useAgentGoals';
 import { useStreakReminders } from '@/hooks/useStreakReminders';
 import { StreakReminderBanner } from './StreakReminderBanner';
+import { GamificationLevel } from './GamificationLevel';
 import { cn } from '@/lib/utils';
 
 const metricConfig: Record<GoalMetric, { label: string; icon: React.ReactNode; unit: string; color: string }> = {
@@ -446,6 +447,11 @@ export const GoalTracker: React.FC = () => {
       </CardHeader>
 
       <CardContent>
+        {/* Gamification Level */}
+        <div className="mb-6">
+          <GamificationLevel completedCount={completedCount} streaks={streaks} />
+        </div>
+        
         {/* Streak Reminder Banner */}
         <StreakReminderBanner goals={goals} streaks={streaks} />
         
