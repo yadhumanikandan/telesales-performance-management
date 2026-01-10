@@ -5,9 +5,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import { ComposedChart, Line, Bar, Area, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { useAgentPerformanceTrends, AgentDailyTrend, AgentTrendSummary } from '@/hooks/useAgentPerformanceTrends';
-import { User, TrendingUp, TrendingDown, Minus, Phone, ThumbsUp, Target, Calendar, Activity, RefreshCw } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { User, TrendingUp, TrendingDown, Minus, Phone, ThumbsUp, Target, Calendar, Activity, RefreshCw, FileDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { generateAgentPerformancePDF } from '@/utils/agentReportPDF';
+import { toast } from 'sonner';
 
 interface AgentDrillDownChartProps {
   className?: string;
@@ -29,8 +32,10 @@ const chartConfig = {
 };
 
 export const AgentDrillDownChart: React.FC<AgentDrillDownChartProps> = ({ className }) => {
+  const { profile } = useAuth();
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [days, setDays] = useState<number>(14);
+  const [isExporting, setIsExporting] = useState(false);
 
   const {
     agents,
@@ -42,6 +47,27 @@ export const AgentDrillDownChart: React.FC<AgentDrillDownChartProps> = ({ classN
   } = useAgentPerformanceTrends({ agentId: selectedAgentId, days });
 
   const hasData = dailyTrends.some(d => d.totalCalls > 0);
+
+  const handleExportPDF = async () => {
+    if (!summary) return;
+    
+    setIsExporting(true);
+    try {
+      await generateAgentPerformancePDF({
+        summary,
+        dailyTrends,
+        days,
+        generatedAt: new Date(),
+        generatedBy: profile?.full_name || profile?.username || undefined,
+      });
+      toast.success('PDF report downloaded successfully');
+    } catch (error) {
+      console.error('Failed to generate PDF:', error);
+      toast.error('Failed to generate PDF report');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className={cn('space-y-6', className)}>
@@ -59,10 +85,21 @@ export const AgentDrillDownChart: React.FC<AgentDrillDownChartProps> = ({ classN
               </CardDescription>
             </div>
             {selectedAgentId && (
-              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
-                <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
-                Refresh
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleExportPDF} 
+                  disabled={isLoading || isExporting || !summary}
+                >
+                  <FileDown className={cn('w-4 h-4 mr-2', isExporting && 'animate-pulse')} />
+                  {isExporting ? 'Generating...' : 'Export PDF'}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isLoading}>
+                  <RefreshCw className={cn('w-4 h-4 mr-2', isLoading && 'animate-spin')} />
+                  Refresh
+                </Button>
+              </div>
             )}
           </div>
         </CardHeader>
