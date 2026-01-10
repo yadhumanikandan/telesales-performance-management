@@ -33,6 +33,8 @@ import {
   Save,
   Trash2,
   Star,
+  Download,
+  UploadCloud,
 } from 'lucide-react';
 import { useLeaderboard, TimePeriod, LeaderboardAgent, TeamStats, LeadStatusFilter } from '@/hooks/useLeaderboard';
 import { useCustomFilterPresets, CustomPreset } from '@/hooks/useCustomFilterPresets';
@@ -233,7 +235,34 @@ export const Leaderboard: React.FC = () => {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   
-  const { customPresets, savePreset, deletePreset } = useCustomFilterPresets('leaderboard-custom-presets');
+  const { customPresets, savePreset, deletePreset, exportPresets, importPresets } = useCustomFilterPresets('leaderboard-custom-presets');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      const result = await importPresets(file);
+      toast.success(`Imported ${result.imported} preset(s)${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to import presets');
+    }
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExport = () => {
+    if (customPresets.length === 0) {
+      toast.error('No custom presets to export');
+      return;
+    }
+    exportPresets();
+    toast.success(`Exported ${customPresets.length} preset(s)`);
+  };
 
   const handleTimePeriodChange = (value: TimePeriod) => {
     setTimePeriod(value);
@@ -531,6 +560,34 @@ export const Leaderboard: React.FC = () => {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          
+          {/* Import/Export */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <UploadCloud className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Manage Presets</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleExport} className="gap-2 cursor-pointer">
+                <Download className="w-4 h-4" />
+                Export Presets
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2 cursor-pointer">
+                <UploadCloud className="w-4 h-4" />
+                Import Presets
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
           
           <Select value={timePeriod} onValueChange={handleTimePeriodChange}>
             <SelectTrigger className="w-[180px]">

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Upload, ArrowRight, Sparkles, Calendar, Filter, X, Zap, Save, Trash2, Star } from 'lucide-react';
+import { Phone, Upload, ArrowRight, Sparkles, Calendar, Filter, X, Zap, Save, Trash2, Star, Download, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
@@ -57,7 +57,34 @@ export const Dashboard: React.FC = () => {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   
-  const { customPresets, savePreset, deletePreset } = useCustomFilterPresets('dashboard-custom-presets');
+  const { customPresets, savePreset, deletePreset, exportPresets, importPresets } = useCustomFilterPresets('dashboard-custom-presets');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    try {
+      const result = await importPresets(file);
+      toast.success(`Imported ${result.imported} preset(s)${result.skipped > 0 ? `, ${result.skipped} skipped` : ''}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to import presets');
+    }
+    
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleExport = () => {
+    if (customPresets.length === 0) {
+      toast.error('No custom presets to export');
+      return;
+    }
+    exportPresets();
+    toast.success(`Exported ${customPresets.length} preset(s)`);
+  };
 
   const handleTimePeriodChange = (value: DashboardTimePeriod) => {
     setTimePeriod(value);
@@ -306,6 +333,34 @@ export const Dashboard: React.FC = () => {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              
+              {/* Import/Export */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 bg-background/50 backdrop-blur-sm">
+                    <UploadCloud className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>Manage Presets</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleExport} className="gap-2 cursor-pointer">
+                    <Download className="w-4 h-4" />
+                    Export Presets
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => fileInputRef.current?.click()} className="gap-2 cursor-pointer">
+                    <UploadCloud className="w-4 h-4" />
+                    Import Presets
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
             </div>
             {/* Custom Filters */}
             <div className="flex flex-wrap gap-2">
