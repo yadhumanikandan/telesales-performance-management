@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Upload, ArrowRight, Sparkles, Calendar, Filter } from 'lucide-react';
+import { Phone, Upload, ArrowRight, Sparkles, Calendar, Filter, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StatsGrid } from '@/components/dashboard/StatsGrid';
 import { CallsChart } from '@/components/dashboard/CallsChart';
@@ -44,6 +45,27 @@ export const Dashboard: React.FC = () => {
     leadStatusFilter,
   });
 
+  const getTimePeriodLabel = (period: DashboardTimePeriod) => {
+    const labels: Record<DashboardTimePeriod, string> = {
+      today: 'Today',
+      this_week: 'This Week',
+      this_month: 'This Month',
+      six_months: '6 Months',
+    };
+    return labels[period];
+  };
+
+  const getLeadStatusLabel = (status: DashboardLeadStatusFilter) => {
+    const labels: Record<DashboardLeadStatusFilter, string> = {
+      all: 'All Leads',
+      matched: 'Matched',
+      unmatched: 'Unmatched',
+    };
+    return labels[status];
+  };
+
+  const hasActiveFilters = timePeriod !== 'today' || leadStatusFilter !== 'all';
+
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -68,6 +90,36 @@ export const Dashboard: React.FC = () => {
             <p className="text-muted-foreground mt-2 max-w-lg">
               Here's your real-time performance dashboard. Track your calls, monitor your goals, and stay ahead of the competition.
             </p>
+            {/* Active Filter Badges */}
+            {hasActiveFilters && (
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                <span className="text-xs text-muted-foreground">Active filters:</span>
+                {timePeriod !== 'today' && (
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    <Calendar className="w-3 h-3" />
+                    {getTimePeriodLabel(timePeriod)}
+                    <button
+                      onClick={() => handleTimePeriodChange('today')}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                )}
+                {leadStatusFilter !== 'all' && (
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    <Filter className="w-3 h-3" />
+                    {getLeadStatusLabel(leadStatusFilter)}
+                    <button
+                      onClick={() => handleLeadStatusChange('all')}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
             <Select value={timePeriod} onValueChange={handleTimePeriodChange}>

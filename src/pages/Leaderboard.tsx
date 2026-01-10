@@ -23,6 +23,7 @@ import {
   ArrowUp,
   ArrowDown,
   Filter,
+  X,
 } from 'lucide-react';
 import { useLeaderboard, TimePeriod, LeaderboardAgent, TeamStats, LeadStatusFilter } from '@/hooks/useLeaderboard';
 import { cn } from '@/lib/utils';
@@ -239,6 +240,36 @@ export const Leaderboard: React.FC = () => {
     leadStatusFilter,
   });
 
+  const getTimePeriodLabel = (period: TimePeriod) => {
+    const labels: Record<TimePeriod, string> = {
+      today: 'Today',
+      this_week: 'This Week',
+      last_week: 'Last Week',
+      this_month: 'This Month',
+      last_month: 'Last Month',
+      six_months: '6 Months',
+      all_time: 'All Time',
+    };
+    return labels[period];
+  };
+
+  const getLeadStatusLabel = (status: LeadStatusFilter) => {
+    const labels: Record<LeadStatusFilter, string> = {
+      all: 'All Leads',
+      matched: 'Matched',
+      unmatched: 'Unmatched',
+    };
+    return labels[status];
+  };
+
+  const getTeamName = () => {
+    if (teamFilter === 'all') return null;
+    const team = teamStats.find(t => t.supervisorId === teamFilter);
+    return team ? `${team.teamName}'s Team` : null;
+  };
+
+  const hasActiveFilters = timePeriod !== 'this_week' || leadStatusFilter !== 'all' || teamFilter !== 'all';
+
   if (isLoading) {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -268,6 +299,48 @@ export const Leaderboard: React.FC = () => {
           <p className="text-muted-foreground mt-1">
             {totalAgents} agents ranked · {periodLabel}
           </p>
+          {/* Active Filter Badges */}
+          {hasActiveFilters && (
+            <div className="flex flex-wrap items-center gap-2 mt-2">
+              <span className="text-xs text-muted-foreground">Active filters:</span>
+              {timePeriod !== 'this_week' && (
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  <Calendar className="w-3 h-3" />
+                  {getTimePeriodLabel(timePeriod)}
+                  <button
+                    onClick={() => handleTimePeriodChange('this_week')}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {leadStatusFilter !== 'all' && (
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  <Filter className="w-3 h-3" />
+                  {getLeadStatusLabel(leadStatusFilter)}
+                  <button
+                    onClick={() => handleLeadStatusChange('all')}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+              {teamFilter !== 'all' && getTeamName() && (
+                <Badge variant="secondary" className="gap-1 text-xs">
+                  <Users className="w-3 h-3" />
+                  {getTeamName()}
+                  <button
+                    onClick={() => handleTeamFilterChange('all')}
+                    className="ml-1 hover:text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <Select value={timePeriod} onValueChange={handleTimePeriodChange}>
