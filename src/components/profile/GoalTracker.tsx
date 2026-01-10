@@ -23,6 +23,8 @@ import {
   Flame,
 } from 'lucide-react';
 import { useAgentGoals, GoalType, GoalMetric, GoalWithProgress, GoalStreak, CreateGoalInput } from '@/hooks/useAgentGoals';
+import { useStreakReminders } from '@/hooks/useStreakReminders';
+import { StreakReminderBanner } from './StreakReminderBanner';
 import { cn } from '@/lib/utils';
 
 const metricConfig: Record<GoalMetric, { label: string; icon: React.ReactNode; unit: string; color: string }> = {
@@ -372,6 +374,9 @@ const CreateGoalDialog: React.FC<CreateGoalDialogProps> = ({ onSubmit, isLoading
 
 export const GoalTracker: React.FC = () => {
   const { goals, streaks, completedCount, isLoading, createGoal, deleteGoal, isCreating } = useAgentGoals();
+  
+  // Initialize streak reminders - will show toast notifications
+  useStreakReminders({ goals, streaks });
 
   if (isLoading) {
     return (
@@ -441,6 +446,9 @@ export const GoalTracker: React.FC = () => {
       </CardHeader>
 
       <CardContent>
+        {/* Streak Reminder Banner */}
+        <StreakReminderBanner goals={goals} streaks={streaks} />
+        
         {/* Streak Display */}
         {streaks.length > 0 && <StreakDisplay streaks={streaks} />}
         
