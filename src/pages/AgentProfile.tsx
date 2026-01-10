@@ -43,6 +43,7 @@ import { WeeklyReport } from '@/components/profile/WeeklyReport';
 import { GoalTracker } from '@/components/profile/GoalTracker';
 import { StreakMilestones } from '@/components/profile/StreakMilestones';
 import { LoginStreakReminderBanner } from '@/components/profile/LoginStreakReminderBanner';
+import { LoginStreakMilestones } from '@/components/profile/LoginStreakMilestones';
 
 const chartConfig = {
   calls: { label: 'Calls', color: 'hsl(var(--primary))' },
@@ -326,7 +327,15 @@ export const AgentProfile: React.FC = () => {
       {/* Goal Tracker */}
       <GoalTracker />
 
-      {/* Streak Milestones */}
+      {/* Login Streak Milestones */}
+      {streakData && (
+        <LoginStreakMilestones 
+          currentStreak={streakData.currentStreak}
+          longestStreak={streakData.longestStreak}
+        />
+      )}
+
+      {/* Goal Streak Milestones */}
       <StreakMilestones streaks={streaks} />
 
       {/* Weekly Performance Report */}
