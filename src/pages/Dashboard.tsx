@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Phone, Upload, ArrowRight, Sparkles, Calendar, Filter, X, Zap } from 'lucide-react';
+import { Phone, Upload, ArrowRight, Sparkles, Calendar, Filter, X, Zap, Save, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { StatsGrid } from '@/components/dashboard/StatsGrid';
 import { CallsChart } from '@/components/dashboard/CallsChart';
 import { ConversionChart } from '@/components/dashboard/ConversionChart';
@@ -15,8 +18,10 @@ import { WeeklyTrendChart } from '@/components/dashboard/WeeklyTrendChart';
 import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed';
 import { PerformanceInsights } from '@/components/dashboard/PerformanceInsights';
 import { usePerformanceData, DashboardTimePeriod, DashboardLeadStatusFilter } from '@/hooks/usePerformanceData';
+import { useCustomFilterPresets, CustomPreset } from '@/hooks/useCustomFilterPresets';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface FilterPreset {
   name: string;
@@ -49,6 +54,11 @@ export const Dashboard: React.FC = () => {
     return (saved as DashboardLeadStatusFilter) || 'all';
   });
 
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+  
+  const { customPresets, savePreset, deletePreset } = useCustomFilterPresets('dashboard-custom-presets');
+
   const handleTimePeriodChange = (value: DashboardTimePeriod) => {
     setTimePeriod(value);
     localStorage.setItem('dashboard-time-period', value);
@@ -59,10 +69,26 @@ export const Dashboard: React.FC = () => {
     localStorage.setItem('dashboard-lead-filter', value);
   };
 
-  const applyPreset = useCallback((preset: FilterPreset) => {
-    handleTimePeriodChange(preset.timePeriod);
-    handleLeadStatusChange(preset.leadStatus);
+  const applyPreset = useCallback((preset: FilterPreset | CustomPreset) => {
+    handleTimePeriodChange(preset.timePeriod as DashboardTimePeriod);
+    handleLeadStatusChange(preset.leadStatus as DashboardLeadStatusFilter);
   }, []);
+
+  const handleSavePreset = () => {
+    if (!newPresetName.trim()) {
+      toast.error('Please enter a preset name');
+      return;
+    }
+    savePreset(newPresetName.trim(), timePeriod, leadStatusFilter);
+    toast.success(`Saved preset "${newPresetName.trim()}"`);
+    setNewPresetName('');
+    setSaveDialogOpen(false);
+  };
+
+  const handleDeletePreset = (preset: CustomPreset) => {
+    deletePreset(preset.id);
+    toast.success(`Deleted preset "${preset.name}"`);
+  };
 
   // Keyboard shortcuts for filter presets (Ctrl+1, Ctrl+2, etc.)
   useEffect(() => {
@@ -163,35 +189,124 @@ export const Dashboard: React.FC = () => {
           </div>
           <div className="flex flex-col gap-3">
             {/* Filter Presets */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2 bg-background/50 backdrop-blur-sm">
-                  <Zap className="w-4 h-4 text-primary" />
-                  Quick Filters
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Filter Presets</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {filterPresets.map((preset) => (
-                  <DropdownMenuItem
-                    key={preset.name}
-                    onClick={() => applyPreset(preset)}
-                    className="flex items-start justify-between gap-2 cursor-pointer"
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium">{preset.name}</span>
-                      <span className="text-xs text-muted-foreground">{preset.description}</span>
+            <div className="flex gap-2">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 bg-background/50 backdrop-blur-sm">
+                    <Zap className="w-4 h-4 text-primary" />
+                    Quick Filters
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuLabel>Built-in Presets</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {filterPresets.map((preset) => (
+                    <DropdownMenuItem
+                      key={preset.name}
+                      onClick={() => applyPreset(preset)}
+                      className="flex items-start justify-between gap-2 cursor-pointer"
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        <span className="font-medium">{preset.name}</span>
+                        <span className="text-xs text-muted-foreground">{preset.description}</span>
+                      </div>
+                      {preset.shortcut && (
+                        <kbd className="pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 flex">
+                          <span className="text-xs">⌘</span>{preset.shortcut}
+                        </kbd>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                  
+                  {customPresets.length > 0 && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel className="flex items-center gap-1">
+                        <Star className="w-3 h-3" />
+                        My Presets
+                      </DropdownMenuLabel>
+                      {customPresets.map((preset) => (
+                        <DropdownMenuItem
+                          key={preset.id}
+                          className="flex items-center justify-between gap-2 cursor-pointer group"
+                        >
+                          <div 
+                            className="flex flex-col gap-0.5 flex-1"
+                            onClick={() => applyPreset(preset)}
+                          >
+                            <span className="font-medium">{preset.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {getTimePeriodLabel(preset.timePeriod as DashboardTimePeriod)} · {getLeadStatusLabel(preset.leadStatus as DashboardLeadStatusFilter)}
+                            </span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeletePreset(preset);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-1 hover:text-destructive transition-opacity"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </DropdownMenuItem>
+                      ))}
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
+              {/* Save Current Filters */}
+              <Dialog open={saveDialogOpen} onOpenChange={setSaveDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2 bg-background/50 backdrop-blur-sm">
+                    <Save className="w-4 h-4" />
+                    Save
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[400px]">
+                  <DialogHeader>
+                    <DialogTitle>Save Filter Preset</DialogTitle>
+                    <DialogDescription>
+                      Save your current filter combination for quick access later.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="preset-name">Preset Name</Label>
+                      <Input
+                        id="preset-name"
+                        placeholder="e.g., My Weekly Review"
+                        value={newPresetName}
+                        onChange={(e) => setNewPresetName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
+                      />
                     </div>
-                    {preset.shortcut && (
-                      <kbd className="pointer-events-none h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium opacity-100 flex">
-                        <span className="text-xs">⌘</span>{preset.shortcut}
-                      </kbd>
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+                    <div className="rounded-lg bg-muted p-3 space-y-1">
+                      <p className="text-sm font-medium">Current Filters:</p>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge variant="secondary" className="gap-1 text-xs">
+                          <Calendar className="w-3 h-3" />
+                          {getTimePeriodLabel(timePeriod)}
+                        </Badge>
+                        <Badge variant="secondary" className="gap-1 text-xs">
+                          <Filter className="w-3 h-3" />
+                          {getLeadStatusLabel(leadStatusFilter)}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleSavePreset} className="gap-2">
+                      <Save className="w-4 h-4" />
+                      Save Preset
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
             {/* Custom Filters */}
             <div className="flex flex-wrap gap-2">
               <Select value={timePeriod} onValueChange={handleTimePeriodChange}>
