@@ -38,6 +38,7 @@ import {
   Link2,
   Check,
   BarChart3,
+  RotateCcw,
 } from 'lucide-react';
 import { useLeaderboard, TimePeriod, LeaderboardAgent, TeamStats, LeadStatusFilter } from '@/hooks/useLeaderboard';
 import { useCustomFilterPresets, CustomPreset } from '@/hooks/useCustomFilterPresets';
@@ -238,7 +239,7 @@ export const Leaderboard: React.FC = () => {
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
   
-  const { customPresets, savePreset, deletePreset, exportPresets, importPresets, generateShareLink, getPendingSharedPresets, importFromData, trackPresetUsage, getPresetAnalytics } = useCustomFilterPresets('leaderboard-custom-presets');
+  const { customPresets, savePreset, deletePreset, exportPresets, importPresets, generateShareLink, getPendingSharedPresets, importFromData, trackPresetUsage, getPresetAnalytics, resetUsageStats } = useCustomFilterPresets('leaderboard-custom-presets');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [linkCopied, setLinkCopied] = React.useState(false);
 
@@ -385,6 +386,11 @@ export const Leaderboard: React.FC = () => {
   const handleDeletePreset = (preset: CustomPreset) => {
     deletePreset(preset.id);
     toast.success(`Deleted preset "${preset.name}"`);
+  };
+
+  const handleResetUsageStats = () => {
+    resetUsageStats();
+    toast.success('Usage statistics reset');
   };
 
   // Keyboard shortcuts for filter presets (Ctrl+1, Ctrl+2, etc.)
@@ -554,9 +560,18 @@ export const Leaderboard: React.FC = () => {
                     <>
                       <DropdownMenuSeparator />
                       <div className="px-2 py-1.5">
-                        <div className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
-                          <BarChart3 className="w-3 h-3" />
-                          Usage Analytics
+                        <div className="text-xs text-muted-foreground mb-2 flex items-center justify-between">
+                          <span className="flex items-center gap-1">
+                            <BarChart3 className="w-3 h-3" />
+                            Usage Analytics
+                          </span>
+                          <button
+                            onClick={handleResetUsageStats}
+                            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <RotateCcw className="w-2.5 h-2.5" />
+                            Reset
+                          </button>
                         </div>
                         <div className="space-y-1">
                           {getPresetAnalytics().slice(0, 3).map(a => (
