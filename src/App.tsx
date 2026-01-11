@@ -19,6 +19,7 @@ import { SettingsPage } from "./pages/SettingsPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import TeamManagementPage from "./pages/TeamManagementPage";
 import AlertHistoryPage from "./pages/AlertHistoryPage";
+import ReportsPage from "./pages/ReportsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -44,7 +45,7 @@ const App = () => (
               <Route path="/contacts" element={<Dashboard />} />
               <Route path="/supervisor" element={<SupervisorDashboard />} />
               <Route path="/team" element={<SupervisorDashboard />} />
-              <Route path="/reports" element={<Dashboard />} />
+              <Route path="/reports" element={<ReportsPage />} />
               <Route path="/messages" element={<Dashboard />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/user-management" element={<UserManagementPage />} />

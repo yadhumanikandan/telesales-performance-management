@@ -651,6 +651,57 @@ export type Database = {
           },
         ]
       }
+      scheduled_reports: {
+        Row: {
+          created_at: string
+          created_by: string
+          frequency: string
+          id: string
+          include_agent_breakdown: boolean
+          include_alerts_summary: boolean
+          include_team_summary: boolean
+          is_active: boolean
+          last_sent_at: string | null
+          recipients: Json
+          report_type: string
+          schedule_day: number
+          schedule_time: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          frequency?: string
+          id?: string
+          include_agent_breakdown?: boolean
+          include_alerts_summary?: boolean
+          include_team_summary?: boolean
+          is_active?: boolean
+          last_sent_at?: string | null
+          recipients?: Json
+          report_type?: string
+          schedule_day?: number
+          schedule_time?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          frequency?: string
+          id?: string
+          include_agent_breakdown?: boolean
+          include_alerts_summary?: boolean
+          include_team_summary?: boolean
+          is_active?: boolean
+          last_sent_at?: string | null
+          recipients?: Json
+          report_type?: string
+          schedule_day?: number
+          schedule_time?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       teams: {
         Row: {
           created_at: string
