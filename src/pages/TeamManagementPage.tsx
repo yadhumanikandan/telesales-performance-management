@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useTeamManagement, Team, TeamMember } from '@/hooks/useTeamManagement';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,18 @@ import { PerformanceAlertsList } from '@/components/teams/PerformanceAlertsList'
 import { usePerformanceAlerts } from '@/hooks/usePerformanceAlerts';
 
 export const TeamManagementPage: React.FC = () => {
-  const { 
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'teams';
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  const {
     teams, 
     agents, 
     isLoading, 
@@ -253,7 +265,7 @@ export const TeamManagementPage: React.FC = () => {
         </Card>
       </div>
 
-      <Tabs defaultValue="teams">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="teams" className="gap-2">
             <Users className="w-4 h-4" />
