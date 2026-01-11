@@ -81,10 +81,14 @@ export interface Lead {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  // Derived field: true if has trade license (Lead), false if no trade license (Opportunity)
+  isLead: boolean;
 }
 
 export interface LeadStats {
   total: number;
+  leads: number; // With trade license
+  opportunities: number; // Without trade license
   new: number;
   contacted: number;
   qualified: number;
@@ -124,31 +128,37 @@ export const useLeads = (statusFilter?: LeadStatus | 'all') => {
 
       if (error) throw error;
 
-      return (data || []).map(item => ({
-        id: item.id,
-        contactId: item.contact_id,
-        companyName: item.master_contacts?.company_name || 'Unknown',
-        contactPersonName: item.master_contacts?.contact_person_name || 'Unknown',
-        phoneNumber: item.master_contacts?.phone_number || '',
-        tradeLicenseNumber: item.master_contacts?.trade_license_number || null,
-        city: item.master_contacts?.city || null,
-        industry: item.master_contacts?.industry || null,
-        leadStatus: (item.lead_status || 'new') as LeadStatus,
-        leadScore: item.lead_score || 0,
-        leadSource: ((item as any).lead_source || 'account_RAK') as LeadSource,
-        dealValue: item.deal_value,
-        expectedCloseDate: item.expected_close_date,
-        qualifiedDate: item.qualified_date,
-        notes: item.notes,
-        createdAt: item.created_at || '',
-        updatedAt: item.updated_at || '',
-      }));
+      return (data || []).map(item => {
+        const tradeLicenseNumber = item.master_contacts?.trade_license_number || null;
+        return {
+          id: item.id,
+          contactId: item.contact_id,
+          companyName: item.master_contacts?.company_name || 'Unknown',
+          contactPersonName: item.master_contacts?.contact_person_name || 'Unknown',
+          phoneNumber: item.master_contacts?.phone_number || '',
+          tradeLicenseNumber,
+          city: item.master_contacts?.city || null,
+          industry: item.master_contacts?.industry || null,
+          leadStatus: (item.lead_status || 'new') as LeadStatus,
+          leadScore: item.lead_score || 0,
+          leadSource: ((item as any).lead_source || 'account_RAK') as LeadSource,
+          dealValue: item.deal_value,
+          expectedCloseDate: item.expected_close_date,
+          qualifiedDate: item.qualified_date,
+          notes: item.notes,
+          createdAt: item.created_at || '',
+          updatedAt: item.updated_at || '',
+          isLead: !!tradeLicenseNumber, // Has TL = Lead, No TL = Opportunity
+        };
+      });
     },
     enabled: !!user?.id,
   });
 
   const stats: LeadStats = {
     total: leads?.length || 0,
+    leads: leads?.filter(l => l.isLead).length || 0,
+    opportunities: leads?.filter(l => !l.isLead).length || 0,
     new: leads?.filter(l => l.leadStatus === 'new').length || 0,
     contacted: leads?.filter(l => l.leadStatus === 'contacted').length || 0,
     qualified: leads?.filter(l => l.leadStatus === 'qualified').length || 0,

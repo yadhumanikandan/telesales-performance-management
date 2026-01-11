@@ -177,10 +177,18 @@ export const LeadsPage = () => {
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Target className="w-8 h-8 text-primary" />
-            Leads Pipeline
+            Sales Pipeline
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Track and manage your interested contacts through the sales funnel
+          <p className="text-muted-foreground mt-1 flex items-center gap-3">
+            Track opportunities and leads through the sales funnel
+            <span className="flex items-center gap-2 text-sm">
+              <Badge variant="outline" className="text-amber-600 border-amber-400">
+                {stats.opportunities} Opportunities
+              </Badge>
+              <Badge variant="default" className="bg-green-600">
+                {stats.leads} Leads
+              </Badge>
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-4">
