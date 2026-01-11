@@ -14,6 +14,7 @@ export interface ParsedContact {
   tradeLicenseNumber: string;
   city?: string;
   industry?: string;
+  area?: string;
   isValid: boolean;
   errors: string[];
 }
@@ -218,6 +219,7 @@ export const useCallSheetUpload = () => {
             const tradeLicenseNumber = String(row[columnMap['trade_license_number']] || '').trim();
             const city = columnMap['city'] ? String(row[columnMap['city']] || '').trim() : undefined;
             const industry = columnMap['industry'] ? String(row[columnMap['industry']] || '').trim() : undefined;
+            const area = columnMap['area'] ? String(row[columnMap['area']] || '').trim() : undefined;
 
             // Validate required fields
             if (!companyName) errors.push('Company name is required');
@@ -266,6 +268,7 @@ export const useCallSheetUpload = () => {
               tradeLicenseNumber,
               city,
               industry,
+              area,
               isValid,
               errors,
             });
@@ -339,6 +342,7 @@ export const useCallSheetUpload = () => {
           trade_license_number: c.tradeLicenseNumber,
           city: c.city || null,
           industry: c.industry || null,
+          area: c.area || null,
           first_uploaded_by: user.id,
           current_owner_agent_id: user.id,
           status: 'new' as const,
