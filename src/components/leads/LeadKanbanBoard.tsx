@@ -224,13 +224,20 @@ export const LeadKanbanBoard = ({ leads, onUpdateStatus, onEditLead, isUpdating 
                               )}
                             </div>
 
-                            {/* Trade License Warning */}
-                            {!lead.tradeLicenseNumber && (
-                              <div className="flex items-center gap-1 mt-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-950/30 rounded px-1.5 py-0.5">
-                                <AlertTriangle className="w-3 h-3" />
-                                <span>No trade license</span>
-                              </div>
-                            )}
+                            {/* Lead vs Opportunity Badge */}
+                            <div className="mt-1">
+                              {lead.isLead ? (
+                                <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+                                  <FileText className="w-2.5 h-2.5 mr-1" />
+                                  Lead
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
+                                  <AlertTriangle className="w-2.5 h-2.5 mr-1" />
+                                  Opportunity
+                                </Badge>
+                              )}
+                            </div>
 
                             {/* Deal Value & Close Date */}
                             <div className="flex items-center justify-between mt-2 pt-2 border-t">
