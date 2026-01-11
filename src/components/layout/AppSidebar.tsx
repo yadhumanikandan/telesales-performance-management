@@ -213,14 +213,23 @@ export const AppSidebar: React.FC = () => {
                 </ScrollArea>
               )}
               
-              <div className="p-2 border-t border-border">
+              <div className="p-2 border-t border-border space-y-1">
                 <Button
                   variant="ghost"
                   size="sm"
                   className="w-full justify-between text-muted-foreground hover:text-foreground"
                   onClick={() => navigate('/team-management?tab=alerts')}
                 >
-                  View all alerts
+                  View active alerts
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-between text-muted-foreground hover:text-foreground"
+                  onClick={() => navigate('/alert-history')}
+                >
+                  Alert history
                   <ChevronRight className="w-4 h-4" />
                 </Button>
               </div>

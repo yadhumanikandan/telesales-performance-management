@@ -18,6 +18,7 @@ import { LeadsPage } from "./pages/LeadsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import UserManagementPage from "./pages/UserManagementPage";
 import TeamManagementPage from "./pages/TeamManagementPage";
+import AlertHistoryPage from "./pages/AlertHistoryPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/user-management" element={<UserManagementPage />} />
               <Route path="/team-management" element={<TeamManagementPage />} />
+              <Route path="/alert-history" element={<AlertHistoryPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
