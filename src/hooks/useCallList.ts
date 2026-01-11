@@ -238,7 +238,7 @@ export const useCallList = (selectedDate?: Date) => {
     mutationFn: async ({ contactIds, area }: { contactIds: string[]; area: string }) => {
       const { error } = await supabase
         .from('master_contacts')
-        .update({ area })
+        .update({ area } as any)
         .in('id', contactIds);
 
       if (error) throw error;

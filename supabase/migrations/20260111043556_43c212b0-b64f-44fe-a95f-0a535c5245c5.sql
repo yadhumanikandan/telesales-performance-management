@@ -1,0 +1,1 @@
+ALTER TABLE public.master_contacts ADD COLUMN IF NOT EXISTS area character varying NULL;
