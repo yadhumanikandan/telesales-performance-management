@@ -336,6 +336,7 @@ export type Database = {
       }
       master_contacts: {
         Row: {
+          area: string | null
           city: string | null
           company_name: string
           contact_person_name: string
@@ -352,6 +353,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          area?: string | null
           city?: string | null
           company_name: string
           contact_person_name: string
@@ -368,6 +370,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          area?: string | null
           city?: string | null
           company_name?: string
           contact_person_name?: string
