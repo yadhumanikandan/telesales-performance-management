@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSoundSettings } from '@/hooks/useSoundSettings';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
-import { Settings, Bell, Volume2, User, Shield, AlertCircle } from 'lucide-react';
+import { Settings, Bell, Volume2, User, Shield, AlertCircle, BellOff } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 
 // Storage keys for notification preferences
@@ -38,11 +39,29 @@ export const SettingsPage: React.FC = () => {
     localStorage.getItem(STORAGE_KEYS.leaderboardUpdates) !== 'false'
   );
 
+  // Check if all notifications are enabled
+  const allNotificationsEnabled = dailyGoalReminders && streakReminders && performanceAlerts && leaderboardUpdates;
+
   // Save preferences to localStorage
   const handleToggle = (key: keyof typeof STORAGE_KEYS, value: boolean, setter: React.Dispatch<React.SetStateAction<boolean>>) => {
     setter(value);
     localStorage.setItem(STORAGE_KEYS[key], String(value));
     toast.success(value ? 'Notification enabled' : 'Notification disabled');
+  };
+
+  // Master toggle handler
+  const handleMasterToggle = (enabled: boolean) => {
+    setDailyGoalReminders(enabled);
+    setStreakReminders(enabled);
+    setPerformanceAlerts(enabled);
+    setLeaderboardUpdates(enabled);
+    
+    localStorage.setItem(STORAGE_KEYS.dailyGoalReminders, String(enabled));
+    localStorage.setItem(STORAGE_KEYS.streakReminders, String(enabled));
+    localStorage.setItem(STORAGE_KEYS.performanceAlerts, String(enabled));
+    localStorage.setItem(STORAGE_KEYS.leaderboardUpdates, String(enabled));
+    
+    toast.success(enabled ? 'All notifications enabled' : 'All notifications disabled');
   };
 
   return (
@@ -168,6 +187,28 @@ export const SettingsPage: React.FC = () => {
             <CardDescription>Choose what you want to be notified about</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Master Toggle */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50 border">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  {allNotificationsEnabled ? (
+                    <Bell className="w-4 h-4 text-primary" />
+                  ) : (
+                    <BellOff className="w-4 h-4 text-muted-foreground" />
+                  )}
+                  <Label className="font-semibold">All Notifications</Label>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  {allNotificationsEnabled ? 'All notifications are enabled' : 'Enable or disable all notifications'}
+                </p>
+              </div>
+              <Switch 
+                checked={allNotificationsEnabled} 
+                onCheckedChange={handleMasterToggle}
+              />
+            </div>
+            
+            <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Performance Alerts</Label>
