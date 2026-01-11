@@ -66,16 +66,16 @@
 
     --radius: 0.75rem;
 
-    /* Sidebar - Reddish Orange */
-    --sidebar-background: 15 85% 50%;
+    /* Sidebar - Dark Reddish Orange */
+    --sidebar-background: 15 85% 30%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 20 90% 55%;
+    --sidebar-primary: 20 90% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 25 80% 60%;
+    --sidebar-accent: 20 75% 40%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 15 70% 45%;
-    --sidebar-ring: 20 90% 55%;
-    --sidebar-muted: 15 60% 75%;
+    --sidebar-border: 15 70% 25%;
+    --sidebar-ring: 20 90% 45%;
+    --sidebar-muted: 15 40% 60%;
 
     /* Chart Colors */
     --chart-1: 27 95% 60%;
