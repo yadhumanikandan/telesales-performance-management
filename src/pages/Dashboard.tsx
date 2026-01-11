@@ -334,18 +334,6 @@ export const Dashboard: React.FC = () => {
                 : 'Here\'s your real-time performance dashboard. Track your calls, monitor your goals, and stay ahead of the competition.'}
             </p>
             
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-2 mt-4">
-              <Button
-                variant="default"
-                size="sm"
-                className="gap-2"
-              >
-                <Users className="w-4 h-4" />
-                Team View
-              </Button>
-            </div>
-            
             {/* Team View Filters */}
             {viewMode === 'team' && (
               <div className="flex flex-wrap items-center gap-3 mt-4">
