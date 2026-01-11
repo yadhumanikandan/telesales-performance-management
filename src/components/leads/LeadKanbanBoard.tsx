@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConvertToLeadDialog } from './ConvertToLeadDialog';
 import { toast } from 'sonner';
 import { 
   Target, 
@@ -23,6 +24,7 @@ import {
   Zap,
   FileText,
   AlertTriangle,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getScoreLabel } from '@/hooks/useLeadScoring';
@@ -39,12 +41,16 @@ interface LeadKanbanBoardProps {
   leads: Lead[];
   onUpdateStatus: (leadId: string, status: LeadStatus) => void;
   onEditLead: (lead: Lead) => void;
+  onConvertToLead: (contactId: string, tradeLicenseNumber: string) => void;
   isUpdating: boolean;
+  isConverting: boolean;
 }
 
-export const LeadKanbanBoard = ({ leads, onUpdateStatus, onEditLead, isUpdating }: LeadKanbanBoardProps) => {
+export const LeadKanbanBoard = ({ leads, onUpdateStatus, onEditLead, onConvertToLead, isUpdating, isConverting }: LeadKanbanBoardProps) => {
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<LeadStatus | null>(null);
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [selectedOpportunity, setSelectedOpportunity] = useState<Lead | null>(null);
 
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return null;
@@ -225,17 +231,32 @@ export const LeadKanbanBoard = ({ leads, onUpdateStatus, onEditLead, isUpdating 
                             </div>
 
                             {/* Lead vs Opportunity Badge */}
-                            <div className="mt-1">
+                            <div className="mt-1 flex items-center gap-2">
                               {lead.isLead ? (
                                 <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
                                   <FileText className="w-2.5 h-2.5 mr-1" />
                                   Lead
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
-                                  <AlertTriangle className="w-2.5 h-2.5 mr-1" />
-                                  Opportunity
-                                </Badge>
+                                <>
+                                  <Badge variant="outline" className="text-xs text-amber-600 border-amber-400 bg-amber-50 dark:bg-amber-950/30">
+                                    <AlertTriangle className="w-2.5 h-2.5 mr-1" />
+                                    Opportunity
+                                  </Badge>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-5 px-1.5 text-xs text-primary hover:text-primary"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedOpportunity(lead);
+                                      setConvertDialogOpen(true);
+                                    }}
+                                  >
+                                    <ArrowUpCircle className="w-3 h-3 mr-1" />
+                                    Convert
+                                  </Button>
+                                </>
                               )}
                             </div>
 
@@ -280,6 +301,15 @@ export const LeadKanbanBoard = ({ leads, onUpdateStatus, onEditLead, isUpdating 
           </div>
         );
       })}
+
+      {/* Convert to Lead Dialog */}
+      <ConvertToLeadDialog
+        open={convertDialogOpen}
+        onOpenChange={setConvertDialogOpen}
+        lead={selectedOpportunity}
+        onConvert={onConvertToLead}
+        isConverting={isConverting}
+      />
     </div>
   );
 };

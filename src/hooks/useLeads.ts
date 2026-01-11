@@ -229,6 +229,44 @@ export const useLeads = (statusFilter?: LeadStatus | 'all') => {
     updateLead.mutate({ leadId, updates: details });
   };
 
+  // Mutation to update trade license on master_contacts (convert Opportunity to Lead)
+  const updateTradeLicense = useMutation({
+    mutationFn: async ({
+      contactId,
+      tradeLicenseNumber,
+    }: {
+      contactId: string;
+      tradeLicenseNumber: string;
+    }) => {
+      const { error } = await supabase
+        .from('master_contacts')
+        .update({
+          trade_license_number: tradeLicenseNumber,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', contactId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success('🎉 Opportunity converted to Lead!', {
+        description: 'Trade license number has been added.',
+      });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (error) => {
+      toast.error(`Failed to update trade license: ${error.message}`);
+    },
+  });
+
+  const convertToLead = (contactId: string, tradeLicenseNumber: string) => {
+    if (!tradeLicenseNumber.trim()) {
+      toast.error('Please enter a valid trade license number');
+      return;
+    }
+    updateTradeLicense.mutate({ contactId, tradeLicenseNumber: tradeLicenseNumber.trim() });
+  };
+
   return {
     leads: leads || [],
     stats,
@@ -236,6 +274,8 @@ export const useLeads = (statusFilter?: LeadStatus | 'all') => {
     refetch,
     updateLeadStatus,
     updateLeadDetails,
+    convertToLead,
     isUpdating: updateLead.isPending,
+    isConverting: updateTradeLicense.isPending,
   };
 };

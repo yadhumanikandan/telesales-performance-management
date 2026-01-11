@@ -70,7 +70,7 @@ export const LeadsPage = () => {
     bankName: 'RAK' as BankName,
   });
 
-  const { leads, stats, isLoading, refetch, updateLeadStatus, updateLeadDetails, isUpdating } = useLeads(statusFilter);
+  const { leads, stats, isLoading, refetch, updateLeadStatus, updateLeadDetails, convertToLead, isUpdating, isConverting } = useLeads(statusFilter);
   const { recalculateScores, isRecalculating, getScoreBreakdown } = useLeadScoring();
 
   const filteredLeads = leads.filter(lead => {
@@ -340,7 +340,9 @@ export const LeadsPage = () => {
           leads={leads}
           onUpdateStatus={updateLeadStatus}
           onEditLead={handleEditLead}
+          onConvertToLead={convertToLead}
           isUpdating={isUpdating}
+          isConverting={isConverting}
         />
       )}
 
