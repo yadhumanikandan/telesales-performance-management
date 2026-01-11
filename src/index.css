@@ -67,15 +67,15 @@
     --radius: 0.75rem;
 
     /* Sidebar - Dark Rich Brown/Black */
-    --sidebar-background: 15 30% 12%;
+    --sidebar-background: 15 30% 10%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 20 90% 50%;
+    --sidebar-primary: 25 95% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 20 50% 20%;
+    --sidebar-accent: 25 70% 28%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 15 25% 18%;
-    --sidebar-ring: 20 90% 50%;
-    --sidebar-muted: 15 20% 50%;
+    --sidebar-ring: 25 95% 55%;
+    --sidebar-muted: 15 30% 60%;
 
     /* Chart Colors */
     --chart-1: 27 95% 60%;
