@@ -54,10 +54,10 @@ const NavItem: React.FC<NavItemProps> = ({ to, icon, label }) => {
       to={to}
       className={({ isActive }) =>
         cn(
-          'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200',
+          'flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 font-semibold',
           isActive
-            ? 'bg-sidebar-accent text-sidebar-primary font-medium'
-            : 'text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground'
+            ? 'bg-sidebar-accent text-sidebar-primary font-bold'
+            : 'text-sidebar-foreground/80 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground font-medium'
         )
       }
     >
@@ -116,8 +116,8 @@ export const AppSidebar: React.FC = () => {
               <Headphones className="w-5 h-5 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <h1 className="font-bold text-sidebar-foreground">TeleSales</h1>
-              <p className="text-xs text-sidebar-muted">Automation System</p>
+              <h1 className="font-bold text-lg text-sidebar-foreground">TeleSales</h1>
+              <p className="text-xs text-sidebar-muted font-medium">Automation System</p>
             </div>
           </div>
           
@@ -251,7 +251,7 @@ export const AppSidebar: React.FC = () => {
         {(userRole === 'supervisor' || userRole === 'operations_head' || userRole === 'admin' || userRole === 'super_admin') && (
           <>
             <div className="pt-4 pb-2">
-              <p className="px-4 text-xs font-semibold text-sidebar-muted uppercase tracking-wider">
+              <p className="px-4 text-xs font-bold text-sidebar-muted uppercase tracking-wider">
                 Management
               </p>
             </div>
@@ -264,7 +264,7 @@ export const AppSidebar: React.FC = () => {
         {(userRole === 'admin' || userRole === 'super_admin') && (
           <>
             <div className="pt-4 pb-2">
-              <p className="px-4 text-xs font-semibold text-sidebar-muted uppercase tracking-wider">
+              <p className="px-4 text-xs font-bold text-sidebar-muted uppercase tracking-wider">
                 Administration
               </p>
             </div>
