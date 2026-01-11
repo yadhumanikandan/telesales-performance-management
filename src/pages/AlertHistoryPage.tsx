@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,8 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from 'sonner';
 import { 
   AlertTriangle, 
   AlertOctagon, 
@@ -25,7 +27,9 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
-  ChevronsRight
+  ChevronsRight,
+  CheckCheck,
+  Eye
 } from 'lucide-react';
 import { format, formatDistanceToNow, startOfDay, endOfDay, subDays, subMonths } from 'date-fns';
 
@@ -70,6 +74,10 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export const AlertHistoryPage: React.FC = () => {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
+  // Selection state
+  const [selectedAlerts, setSelectedAlerts] = useState<Set<string>>(new Set());
   
   // Filter states
   const [datePreset, setDatePreset] = useState('30d');
@@ -220,6 +228,103 @@ export const AlertHistoryPage: React.FC = () => {
     const resolved = filteredAlerts.filter(a => a.alert_status === 'resolved').length;
     return { total, critical, warning, active, resolved };
   }, [filteredAlerts]);
+
+  // Selection helpers
+  const actionableAlerts = useMemo(() => 
+    paginatedAlerts.filter(a => a.alert_status !== 'resolved'),
+    [paginatedAlerts]
+  );
+
+  const selectedCount = selectedAlerts.size;
+  const allPageSelected = actionableAlerts.length > 0 && 
+    actionableAlerts.every(a => selectedAlerts.has(a.id));
+  const somePageSelected = actionableAlerts.some(a => selectedAlerts.has(a.id));
+
+  const toggleSelectAll = () => {
+    if (allPageSelected) {
+      // Deselect all on current page
+      const newSelection = new Set(selectedAlerts);
+      actionableAlerts.forEach(a => newSelection.delete(a.id));
+      setSelectedAlerts(newSelection);
+    } else {
+      // Select all actionable on current page
+      const newSelection = new Set(selectedAlerts);
+      actionableAlerts.forEach(a => newSelection.add(a.id));
+      setSelectedAlerts(newSelection);
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelection = new Set(selectedAlerts);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedAlerts(newSelection);
+  };
+
+  const clearSelection = () => setSelectedAlerts(new Set());
+
+  // Bulk acknowledge mutation
+  const bulkAcknowledge = useMutation({
+    mutationFn: async (alertIds: string[]) => {
+      const { error } = await supabase
+        .from('performance_alerts')
+        .update({
+          alert_status: 'acknowledged',
+          acknowledged_by: user?.id,
+          acknowledged_at: new Date().toISOString(),
+        })
+        .in('id', alertIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, alertIds) => {
+      toast.success(`${alertIds.length} alert(s) acknowledged`);
+      queryClient.invalidateQueries({ queryKey: ['alert-history'] });
+      queryClient.invalidateQueries({ queryKey: ['performance-alerts'] });
+      clearSelection();
+    },
+    onError: (error) => {
+      toast.error('Failed to acknowledge alerts: ' + error.message);
+    },
+  });
+
+  // Bulk resolve mutation
+  const bulkResolve = useMutation({
+    mutationFn: async (alertIds: string[]) => {
+      const { error } = await supabase
+        .from('performance_alerts')
+        .update({ alert_status: 'resolved' })
+        .in('id', alertIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: (_, alertIds) => {
+      toast.success(`${alertIds.length} alert(s) resolved`);
+      queryClient.invalidateQueries({ queryKey: ['alert-history'] });
+      queryClient.invalidateQueries({ queryKey: ['performance-alerts'] });
+      clearSelection();
+    },
+    onError: (error) => {
+      toast.error('Failed to resolve alerts: ' + error.message);
+    },
+  });
+
+  const handleBulkAcknowledge = () => {
+    const ids = Array.from(selectedAlerts);
+    if (ids.length > 0) {
+      bulkAcknowledge.mutate(ids);
+    }
+  };
+
+  const handleBulkResolve = () => {
+    const ids = Array.from(selectedAlerts);
+    if (ids.length > 0) {
+      bulkResolve.mutate(ids);
+    }
+  };
 
   const clearFilters = () => {
     setDatePreset('30d');
@@ -536,6 +641,52 @@ export const AlertHistoryPage: React.FC = () => {
               <span className="text-sm text-muted-foreground">per page</span>
             </div>
           </div>
+
+          {/* Bulk Actions Bar */}
+          {(selectedCount > 0 || actionableAlerts.length > 0) && (
+            <div className="flex items-center justify-between mt-4 p-3 bg-muted/50 rounded-lg border">
+              <div className="flex items-center gap-3">
+                <Checkbox
+                  checked={allPageSelected}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all on page"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedCount > 0 
+                    ? `${selectedCount} selected` 
+                    : `Select alerts (${actionableAlerts.length} actionable on this page)`
+                  }
+                </span>
+                {selectedCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearSelection} className="h-7 text-xs">
+                    Clear
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleBulkAcknowledge}
+                  disabled={selectedCount === 0 || bulkAcknowledge.isPending}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  Acknowledge ({selectedCount})
+                </Button>
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleBulkResolve}
+                  disabled={selectedCount === 0 || bulkResolve.isPending}
+                >
+                  <CheckCheck className="w-3.5 h-3.5" />
+                  Resolve ({selectedCount})
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {filteredAlerts.length === 0 ? (
@@ -552,32 +703,46 @@ export const AlertHistoryPage: React.FC = () => {
                     const statusConfig = getStatusConfig(alert.alert_status);
                     const isPercentage = alert.metric === 'conversion_rate';
 
+                    const isActionable = alert.alert_status !== 'resolved';
+                    const isSelected = selectedAlerts.has(alert.id);
+
                     return (
                       <div 
                         key={alert.id} 
-                        className={`p-4 border rounded-lg space-y-3 ${alert.alert_status === 'active' ? severityConfig.bgClass : ''}`}
+                        className={`p-4 border rounded-lg space-y-3 ${alert.alert_status === 'active' ? severityConfig.bgClass : ''} ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}`}
                       >
-                        <div className="flex items-start justify-between gap-2 flex-wrap">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {severityConfig.icon}
-                            <Badge variant={alert.alert_type === 'team' ? 'default' : 'secondary'}>
-                              {alert.alert_type === 'team' ? (
-                                <><Users className="w-3 h-3 mr-1" /> {alert.team_name}</>
-                              ) : (
-                                <><User className="w-3 h-3 mr-1" /> {alert.agent_name}</>
-                              )}
-                            </Badge>
-                            <Badge className={severityConfig.badgeClass}>
-                              {alert.severity === 'critical' ? 'Critical' : 'Warning'}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={statusConfig.variant} className="gap-1">
-                              {statusConfig.icon}
-                              {statusConfig.label}
-                            </Badge>
-                          </div>
-                        </div>
+                        <div className="flex items-start gap-3">
+                          {isActionable && (
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSelect(alert.id)}
+                              aria-label={`Select alert`}
+                              className="mt-1"
+                            />
+                          )}
+                          {!isActionable && <div className="w-4" />}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {severityConfig.icon}
+                                <Badge variant={alert.alert_type === 'team' ? 'default' : 'secondary'}>
+                                  {alert.alert_type === 'team' ? (
+                                    <><Users className="w-3 h-3 mr-1" /> {alert.team_name}</>
+                                  ) : (
+                                    <><User className="w-3 h-3 mr-1" /> {alert.agent_name}</>
+                                  )}
+                                </Badge>
+                                <Badge className={severityConfig.badgeClass}>
+                                  {alert.severity === 'critical' ? 'Critical' : 'Warning'}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={statusConfig.variant} className="gap-1">
+                                  {statusConfig.icon}
+                                  {statusConfig.label}
+                                </Badge>
+                              </div>
+                            </div>
 
                         <div className="space-y-1">
                           <p className="text-sm font-medium">
@@ -589,15 +754,17 @@ export const AlertHistoryPage: React.FC = () => {
                           </p>
                         </div>
 
-                        <div className="flex items-center justify-between text-xs text-muted-foreground">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="w-3 h-3" />
-                            <span title={format(new Date(alert.created_at), 'PPpp')}>
-                              {format(new Date(alert.created_at), 'MMM d, yyyy h:mm a')}
-                            </span>
-                            <span className="text-muted-foreground/60">
-                              ({formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })})
-                            </span>
+                            <div className="flex items-center justify-between text-xs text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="w-3 h-3" />
+                                <span title={format(new Date(alert.created_at), 'PPpp')}>
+                                  {format(new Date(alert.created_at), 'MMM d, yyyy h:mm a')}
+                                </span>
+                                <span className="text-muted-foreground/60">
+                                  ({formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })})
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
