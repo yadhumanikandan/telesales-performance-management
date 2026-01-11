@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
 import {
   Table,
   TableBody,
@@ -52,6 +53,7 @@ import {
   RefreshCw,
   Loader2,
   AlertTriangle,
+  UserPlus,
 } from 'lucide-react';
 import { useUserManagement, useCompanyPool, UserWithRole } from '@/hooks/useUserManagement';
 import { exportUserDataToExcel } from '@/utils/userDataExport';
@@ -59,6 +61,8 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { Database as DBTypes } from '@/integrations/supabase/types';
 import { Navigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 type AppRole = DBTypes['public']['Enums']['app_role'];
 
@@ -97,6 +101,16 @@ export const UserManagementPage: React.FC = () => {
   }>({ open: false, action: null, user: null });
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [selectedRoleToAdd, setSelectedRoleToAdd] = useState<AppRole | null>(null);
+  
+  // Create user state
+  const [createUserDialogOpen, setCreateUserDialogOpen] = useState(false);
+  const [isCreatingUser, setIsCreatingUser] = useState(false);
+  const [newUserForm, setNewUserForm] = useState({
+    email: '',
+    password: '',
+    fullName: '',
+    role: 'agent' as AppRole,
+  });
 
   // Check if current user has admin access
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
@@ -138,6 +152,52 @@ export const UserManagementPage: React.FC = () => {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUserForm.email || !newUserForm.password || !newUserForm.fullName) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    if (newUserForm.password.length < 6) {
+      toast.error('Password must be at least 6 characters');
+      return;
+    }
+
+    setIsCreatingUser(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newUserForm.email,
+          password: newUserForm.password,
+          fullName: newUserForm.fullName,
+          role: newUserForm.role,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      if (response.data?.error) {
+        throw new Error(response.data.error);
+      }
+
+      toast.success(`User ${newUserForm.email} created successfully`);
+      setCreateUserDialogOpen(false);
+      setNewUserForm({ email: '', password: '', fullName: '', role: 'agent' });
+      
+      // Refresh user list
+      window.location.reload();
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to create user';
+      toast.error(message);
+    } finally {
+      setIsCreatingUser(false);
+    }
+  };
+
   const canManageRole = (role: AppRole): boolean => {
     if (isSuperAdmin) return true;
     if (role === 'admin' || role === 'super_admin') return false;
@@ -160,6 +220,13 @@ export const UserManagementPage: React.FC = () => {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button 
+            onClick={() => setCreateUserDialogOpen(true)}
+            className="gap-2"
+          >
+            <UserPlus className="w-4 h-4" />
+            Create User
+          </Button>
           <Button 
             variant="outline" 
             onClick={() => moveOldContactsToPool()}
@@ -502,6 +569,92 @@ export const UserManagementPage: React.FC = () => {
                 Move to Pool
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create User Dialog */}
+      <Dialog open={createUserDialogOpen} onOpenChange={setCreateUserDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-primary" />
+              Create New User
+            </DialogTitle>
+            <DialogDescription>
+              Create a new user account with a specific role. The user will be able to log in immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Full Name *</Label>
+              <Input
+                id="fullName"
+                placeholder="John Doe"
+                value={newUserForm.fullName}
+                onChange={(e) => setNewUserForm(f => ({ ...f, fullName: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={newUserForm.email}
+                onChange={(e) => setNewUserForm(f => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password *</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Minimum 6 characters"
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm(f => ({ ...f, password: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Role</Label>
+              <Select 
+                value={newUserForm.role} 
+                onValueChange={(value) => setNewUserForm(f => ({ ...f, role: value as AppRole }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableRoles.filter(role => canManageRole(role)).map(role => (
+                    <SelectItem key={role} value={role}>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn("text-xs", roleLabels[role]?.color)}>
+                          {roleLabels[role]?.label || role}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateUserDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateUser} disabled={isCreatingUser}>
+              {isCreatingUser ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Create User
+                </>
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
