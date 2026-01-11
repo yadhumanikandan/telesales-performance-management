@@ -80,7 +80,7 @@ const roleLabels: Record<AppRole, { label: string; color: string }> = {
 const availableRoles: AppRole[] = ['agent', 'supervisor', 'operations_head', 'admin', 'super_admin', 'sales_controller'];
 
 export const UserManagementPage: React.FC = () => {
-  const { profile, userRole } = useAuth();
+  const { profile, userRole, ledTeamId } = useAuth();
   const { 
     users, 
     isLoading, 
@@ -93,6 +93,13 @@ export const UserManagementPage: React.FC = () => {
     isUpdating 
   } = useUserManagement();
   const { poolContacts, moveOldContactsToPool, isMoving } = useCompanyPool();
+  
+  // Check user permissions
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const isSuperAdmin = userRole === 'super_admin';
+  const isSupervisor = userRole === 'supervisor';
+  const isTeamLeader = !!ledTeamId;
+  const canAccessPage = isAdmin || (isSupervisor && isTeamLeader);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
@@ -139,15 +146,22 @@ export const UserManagementPage: React.FC = () => {
     },
   });
 
-  // Check if current user has admin access
-  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
-  const isSuperAdmin = userRole === 'super_admin';
-
-  if (!isAdmin) {
+  if (!canAccessPage) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const filteredUsers = users.filter(user =>
+  // Filter users - supervisors can only see their team members
+  const getFilterableUsers = () => {
+    if (isAdmin) return users;
+    if (isSupervisor && isTeamLeader) {
+      return users.filter(user => user.team_id === ledTeamId);
+    }
+    return [];
+  };
+
+  const accessibleUsers = getFilterableUsers();
+  
+  const filteredUsers = accessibleUsers.filter(user =>
     user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     user.username.toLowerCase().includes(searchQuery.toLowerCase())
@@ -268,6 +282,7 @@ export const UserManagementPage: React.FC = () => {
   };
 
   const canManageRole = (role: AppRole): boolean => {
+    if (!isAdmin) return false; // Supervisors cannot manage roles
     if (isSuperAdmin) return true;
     if (role === 'admin' || role === 'super_admin') return false;
     return true;
@@ -282,46 +297,54 @@ export const UserManagementPage: React.FC = () => {
             <Users className="w-6 h-6 text-primary" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
+            <h1 className="text-3xl font-bold tracking-tight">
+              {isAdmin ? 'User Management' : 'Team Management'}
+            </h1>
             <p className="text-muted-foreground mt-1">
-              Manage users, roles, and company data pool
+              {isAdmin 
+                ? 'Manage users, roles, and company data pool' 
+                : 'Manage your team members'}
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button 
-            onClick={() => setCreateUserDialogOpen(true)}
-            className="gap-2"
-          >
-            <UserPlus className="w-4 h-4" />
-            Create User
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => moveOldContactsToPool()}
-            disabled={isMoving}
-            className="gap-2"
-          >
-            {isMoving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Database className="w-4 h-4" />
-            )}
-            Move Old to Pool
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => setCreateUserDialogOpen(true)}
+              className="gap-2"
+            >
+              <UserPlus className="w-4 h-4" />
+              Create User
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => moveOldContactsToPool()}
+              disabled={isMoving}
+              className="gap-2"
+            >
+              {isMoving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Database className="w-4 h-4" />
+              )}
+              Move Old to Pool
+            </Button>
+          </div>
+        )}
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
         <TabsList>
           <TabsTrigger value="users" className="gap-2">
             <Users className="w-4 h-4" />
-            Users ({users.length})
+            {isAdmin ? 'Users' : 'Team Members'} ({accessibleUsers.length})
           </TabsTrigger>
-          <TabsTrigger value="pool" className="gap-2">
-            <Database className="w-4 h-4" />
-            Company Pool ({poolContacts.length})
-          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger value="pool" className="gap-2">
+              <Database className="w-4 h-4" />
+              Company Pool ({poolContacts.length})
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="users" className="space-y-4">
@@ -329,7 +352,7 @@ export const UserManagementPage: React.FC = () => {
           <div className="relative max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Search users..."
+              placeholder={isAdmin ? "Search users..." : "Search team members..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -388,17 +411,19 @@ export const UserManagementPage: React.FC = () => {
                                   </Badge>
                                 ))
                               )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2"
-                                onClick={() => {
-                                  setSelectedUser(user);
-                                  setRoleDialogOpen(true);
-                                }}
-                              >
-                                <Plus className="w-3 h-3" />
-                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2"
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setRoleDialogOpen(true);
+                                  }}
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </Button>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
@@ -408,7 +433,7 @@ export const UserManagementPage: React.FC = () => {
                                 onCheckedChange={(checked) => 
                                   toggleUserActive({ userId: user.id, isActive: checked })
                                 }
-                                disabled={isUpdating}
+                                disabled={isUpdating || !isAdmin}
                               />
                               <span className={cn(
                                 "text-sm",
@@ -435,38 +460,42 @@ export const UserManagementPage: React.FC = () => {
                                   <Edit2 className="w-4 h-4 mr-2" />
                                   Edit Profile
                                 </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => setConfirmDialog({ 
-                                    open: true, 
-                                    action: 'export', 
-                                    user 
-                                  })}
-                                >
-                                  <Download className="w-4 h-4 mr-2" />
-                                  Export Data
-                                </DropdownMenuItem>
-                                <DropdownMenuItem 
-                                  onClick={() => setConfirmDialog({ 
-                                    open: true, 
-                                    action: 'move_to_pool', 
-                                    user 
-                                  })}
-                                >
-                                  <Database className="w-4 h-4 mr-2" />
-                                  Move Data to Pool
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem 
-                                  className="text-destructive"
-                                  onClick={() => setConfirmDialog({ 
-                                    open: true, 
-                                    action: 'deactivate', 
-                                    user 
-                                  })}
-                                >
-                                  <UserX className="w-4 h-4 mr-2" />
-                                  Deactivate & Move Data
-                                </DropdownMenuItem>
+                                {isAdmin && (
+                                  <>
+                                    <DropdownMenuItem 
+                                      onClick={() => setConfirmDialog({ 
+                                        open: true, 
+                                        action: 'export', 
+                                        user 
+                                      })}
+                                    >
+                                      <Download className="w-4 h-4 mr-2" />
+                                      Export Data
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem 
+                                      onClick={() => setConfirmDialog({ 
+                                        open: true, 
+                                        action: 'move_to_pool', 
+                                        user 
+                                      })}
+                                    >
+                                      <Database className="w-4 h-4 mr-2" />
+                                      Move Data to Pool
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem 
+                                      className="text-destructive"
+                                      onClick={() => setConfirmDialog({ 
+                                        open: true, 
+                                        action: 'deactivate', 
+                                        user 
+                                      })}
+                                    >
+                                      <UserX className="w-4 h-4 mr-2" />
+                                      Deactivate & Move Data
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
