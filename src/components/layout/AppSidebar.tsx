@@ -17,14 +17,17 @@ import {
   Headphones,
   Trophy,
   Shield,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { CompactLevelBadge } from '@/components/profile/CompactLevelBadge';
 import { SoundToggle } from '@/components/ui/SoundToggle';
 import { LoginStreakBadge } from '@/components/profile/LoginStreakBadge';
 import { useLoginStreak } from '@/hooks/useLoginStreak';
+import { usePerformanceAlerts } from '@/hooks/usePerformanceAlerts';
 
 interface NavItemProps {
   to: string;
@@ -55,6 +58,7 @@ export const AppSidebar: React.FC = () => {
   const { profile, userRole } = useAuth();
   const navigate = useNavigate();
   const { streakData } = useLoginStreak();
+  const { activeAlertsCount } = usePerformanceAlerts();
 
   const handleSignOut = async () => {
     const { error } = await signOut();
@@ -88,14 +92,34 @@ export const AppSidebar: React.FC = () => {
     <aside className="w-64 h-screen bg-sidebar flex flex-col fixed left-0 top-0">
       {/* Logo */}
       <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
-            <Headphones className="w-5 h-5 text-sidebar-primary-foreground" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-sidebar-primary flex items-center justify-center">
+              <Headphones className="w-5 h-5 text-sidebar-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="font-bold text-sidebar-foreground">TeleSales</h1>
+              <p className="text-xs text-sidebar-muted">Automation System</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-sidebar-foreground">TeleSales</h1>
-            <p className="text-xs text-sidebar-muted">Automation System</p>
-          </div>
+          
+          {/* Notification Bell */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
+            onClick={() => navigate('/team-management?tab=alerts')}
+          >
+            <Bell className="w-5 h-5" />
+            {activeAlertsCount > 0 && (
+              <Badge 
+                variant="destructive" 
+                className="absolute -top-1 -right-1 h-5 min-w-5 px-1 text-xs flex items-center justify-center"
+              >
+                {activeAlertsCount > 99 ? '99+' : activeAlertsCount}
+              </Badge>
+            )}
+          </Button>
         </div>
       </div>
 
