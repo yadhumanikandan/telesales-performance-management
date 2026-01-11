@@ -91,6 +91,7 @@ export const UploadPage: React.FC = () => {
         trade_license_number: 'TL-12345',
         city: 'Dubai',
         industry: 'Trading',
+        area: 'Business Bay',
       },
       {
         company_name: 'XYZ Services',
@@ -99,6 +100,7 @@ export const UploadPage: React.FC = () => {
         trade_license_number: 'TL-67890',
         city: 'Abu Dhabi',
         industry: 'Services',
+        area: 'Khalifa City',
       },
     ];
 
@@ -114,6 +116,7 @@ export const UploadPage: React.FC = () => {
       { wch: 18 }, // trade_license_number
       { wch: 12 }, // city
       { wch: 12 }, // industry
+      { wch: 15 }, // area
     ];
 
     XLSX.writeFile(workbook, 'call_sheet_template.xlsx');
