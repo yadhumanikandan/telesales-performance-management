@@ -88,8 +88,8 @@ docker/
 ├── kong.yml              # API Gateway routing
 ├── .env.example          # Environment template
 ├── init-scripts/         # Database initialization
-│   └── 01-init.sql       # Roles and extensions
-└── README.md             # This file
+│   ├── 01-init.sql       # Roles and extensions
+│   └── 02-setup-passwords.sh # Role passwords
 ```
 
 ## 🔧 Common Commands
