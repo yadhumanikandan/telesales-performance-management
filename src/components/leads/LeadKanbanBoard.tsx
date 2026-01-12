@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Lead, LeadStatus } from '@/hooks/useLeads';
+import { Lead, LeadStatus, parseLeadSource, ACCOUNT_BANKS, LOAN_BANKS } from '@/hooks/useLeads';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -28,9 +28,25 @@ import {
   AlertTriangle,
   ArrowUpCircle,
   UserCircle,
+  Banknote,
+  CreditCard,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getScoreLabel } from '@/hooks/useLeadScoring';
+
+// Helper to get bank label from bank code
+const getBankLabel = (bankCode: string): string => {
+  const allBanks = [...ACCOUNT_BANKS, ...LOAN_BANKS];
+  const bank = allBanks.find(b => b.value === bankCode);
+  return bank?.label || bankCode;
+};
+
+// Helper to get product label (Group 1 = Account, Group 2 = Loan)
+const getProductLabel = (product: string): { label: string; group: string } => {
+  if (product === 'account') return { label: 'Account', group: 'Group 1' };
+  if (product === 'loan') return { label: 'Loan', group: 'Group 2' };
+  return { label: product, group: '' };
+};
 
 const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; bgColor: string; icon: React.ElementType }[] = [
   { status: 'new', label: 'New', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/30', icon: Sparkles },
@@ -292,6 +308,26 @@ export const LeadKanbanBoard = ({
                                 </span>
                               )}
                             </div>
+
+                            {/* Bank Name & Group */}
+                            {lead.leadSource && (() => {
+                              const parsed = parseLeadSource(lead.leadSource);
+                              if (!parsed) return null;
+                              const productInfo = getProductLabel(parsed.product);
+                              const bankLabel = getBankLabel(parsed.bank);
+                              return (
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                  <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-300">
+                                    <Banknote className="w-2.5 h-2.5 mr-1" />
+                                    {bankLabel}
+                                  </Badge>
+                                  <Badge variant="outline" className={`text-xs ${parsed.product === 'account' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-300' : 'bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border-violet-300'}`}>
+                                    {parsed.product === 'account' ? <CreditCard className="w-2.5 h-2.5 mr-1" /> : <Banknote className="w-2.5 h-2.5 mr-1" />}
+                                    {productInfo.group}
+                                  </Badge>
+                                </div>
+                              );
+                            })()}
 
                             {/* Lead vs Opportunity Badge */}
                             <div className="mt-1 flex items-center gap-2">
