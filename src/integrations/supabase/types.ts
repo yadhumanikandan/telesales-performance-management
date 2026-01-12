@@ -757,7 +757,6 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           email: string
-          email_encrypted: string | null
           full_name: string | null
           id: string
           is_active: boolean | null
@@ -765,20 +764,17 @@ export type Database = {
           last_login_date: string | null
           login_streak_current: number | null
           login_streak_longest: number | null
-          phone_encrypted: string | null
           phone_number: string | null
           supervisor_id: string | null
           team_id: string | null
           updated_at: string | null
           username: string
-          whatsapp_encrypted: string | null
           whatsapp_number: string | null
         }
         Insert: {
           avatar_url?: string | null
           created_at?: string | null
           email: string
-          email_encrypted?: string | null
           full_name?: string | null
           id: string
           is_active?: boolean | null
@@ -786,20 +782,17 @@ export type Database = {
           last_login_date?: string | null
           login_streak_current?: number | null
           login_streak_longest?: number | null
-          phone_encrypted?: string | null
           phone_number?: string | null
           supervisor_id?: string | null
           team_id?: string | null
           updated_at?: string | null
           username: string
-          whatsapp_encrypted?: string | null
           whatsapp_number?: string | null
         }
         Update: {
           avatar_url?: string | null
           created_at?: string | null
           email?: string
-          email_encrypted?: string | null
           full_name?: string | null
           id?: string
           is_active?: boolean | null
@@ -807,13 +800,11 @@ export type Database = {
           last_login_date?: string | null
           login_streak_current?: number | null
           login_streak_longest?: number | null
-          phone_encrypted?: string | null
           phone_number?: string | null
           supervisor_id?: string | null
           team_id?: string | null
           updated_at?: string | null
           username?: string
-          whatsapp_encrypted?: string | null
           whatsapp_number?: string | null
         }
         Relationships: [
@@ -1259,8 +1250,6 @@ export type Database = {
         Args: { encrypted_data: string }
         Returns: string
       }
-      encrypt_sensitive_data: { Args: { plain_text: string }; Returns: string }
-      get_encryption_key: { Args: never; Returns: string }
       get_led_team_id: { Args: { _user_id: string }; Returns: string }
       get_own_profile: {
         Args: never
