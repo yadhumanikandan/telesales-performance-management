@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useTalkTimeLeaderboard, TimePeriod, TalkTimeAgent, TeamTalkTimeStats } from '@/hooks/useTalkTimeLeaderboard';
 import { useTeamManagement } from '@/hooks/useTeamManagement';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 const formatDuration = (minutes: number): string => {
@@ -182,6 +183,7 @@ const TeamComparisonCard: React.FC<{ teams: TeamTalkTimeStats[] }> = ({ teams })
 };
 
 export const TalkTimeLeaderboard: React.FC = () => {
+  const { user, profile, userRole } = useAuth();
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('this_week');
   const [teamFilter, setTeamFilter] = useState<string>('all');
 
@@ -190,6 +192,42 @@ export const TalkTimeLeaderboard: React.FC = () => {
     timePeriod,
     teamFilter: teamFilter === 'all' ? null : teamFilter,
   });
+
+  // Filter teams to only show user's respective team(s) based on role
+  const userAccessibleTeams = useMemo(() => {
+    // Admins and super_admins can see all teams
+    if (userRole === 'admin' || userRole === 'super_admin') {
+      return teams;
+    }
+    
+    // Supervisors can see their own team (teams they lead)
+    if (userRole === 'supervisor' && user?.id) {
+      return teams.filter(t => t.leader_id === user.id);
+    }
+    
+    // Operations heads can see teams they oversee
+    if (userRole === 'operations_head' && user?.id) {
+      return teams.filter(t => t.leader_id === user.id);
+    }
+    
+    // Regular agents can only see their own team (via team_id on profile)
+    if (profile?.team_id) {
+      return teams.filter(t => t.id === profile.team_id);
+    }
+    
+    // Default: no team access, show empty
+    return [];
+  }, [teams, userRole, user?.id, profile?.team_id]);
+
+  // Determine if user can see "All Teams" option
+  const canSeeAllTeams = userRole === 'admin' || userRole === 'super_admin';
+
+  // Filter teamStats to only show accessible teams
+  const accessibleTeamStats = useMemo(() => {
+    if (canSeeAllTeams) return teamStats;
+    const accessibleTeamIds = new Set(userAccessibleTeams.map(t => t.id));
+    return teamStats.filter(ts => accessibleTeamIds.has(ts.teamId));
+  }, [teamStats, userAccessibleTeams, canSeeAllTeams]);
 
   const getTimePeriodLabel = (period: TimePeriod) => {
     const labels: Record<TimePeriod, string> = {
@@ -250,19 +288,21 @@ export const TalkTimeLeaderboard: React.FC = () => {
                 <SelectItem value="all_time">All Time</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={teamFilter} onValueChange={setTeamFilter}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue placeholder="All Teams" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Teams</SelectItem>
-                {teams.map(team => (
-                  <SelectItem key={team.id} value={team.id}>
-                    {team.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {userAccessibleTeams.length > 0 && (
+              <Select value={teamFilter} onValueChange={setTeamFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <SelectValue placeholder="Filter by team" />
+                </SelectTrigger>
+                <SelectContent>
+                  {canSeeAllTeams && <SelectItem value="all">All Teams</SelectItem>}
+                  {userAccessibleTeams.map(team => (
+                    <SelectItem key={team.id} value={team.id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -345,13 +385,13 @@ export const TalkTimeLeaderboard: React.FC = () => {
           </TabsContent>
 
           <TabsContent value="teams">
-            {teamStats.length === 0 ? (
+            {accessibleTeamStats.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
                 <p className="font-medium">No team data available</p>
               </div>
             ) : (
-              <TeamComparisonCard teams={teamStats} />
+              <TeamComparisonCard teams={accessibleTeamStats} />
             )}
           </TabsContent>
         </Tabs>
