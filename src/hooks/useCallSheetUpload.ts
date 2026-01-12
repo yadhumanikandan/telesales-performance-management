@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -231,6 +231,8 @@ export const useCallSheetUpload = () => {
   const [parsedData, setParsedData] = useState<UploadValidationResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Helper to calculate ETA
   const calculateETA = (startTime: number, currentItem: number, totalItems: number): number => {
@@ -556,10 +558,22 @@ export const useCallSheetUpload = () => {
     mutationFn: async ({ file, validationResult }: { file: File; validationResult: UploadValidationResult }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
+      // Create new abort controller for this upload
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+
+      const checkCancelled = () => {
+        if (signal.aborted) {
+          throw new Error('Upload cancelled');
+        }
+      };
+
       const startTime = Date.now();
       const today = new Date().toISOString().split('T')[0];
       const validContacts = validationResult.contacts.filter(c => c.isValid);
       const totalSteps = 3 + (validContacts.length > 0 ? 2 : 0); // upload record + contacts + call list + rejections
+
+      checkCancelled();
 
       // Stage 1: Creating upload record
       setUploadProgress({
@@ -590,6 +604,8 @@ export const useCallSheetUpload = () => {
 
       if (uploadError) throw uploadError;
 
+      checkCancelled();
+
       // Insert valid contacts and get their IDs
       if (validContacts.length > 0) {
         // Stage 2: Creating contacts
@@ -618,6 +634,8 @@ export const useCallSheetUpload = () => {
         // Insert contacts in batches for progress tracking
         const batchSize = 50;
         for (let i = 0; i < contactsToInsert.length; i += batchSize) {
+          checkCancelled();
+          
           const batch = contactsToInsert.slice(i, i + batchSize);
           const { error: contactsError } = await supabase
             .from('master_contacts')
@@ -637,6 +655,8 @@ export const useCallSheetUpload = () => {
             estimatedTimeRemaining: calculateETA(startTime, processed, validContacts.length),
           });
         }
+
+        checkCancelled();
 
         // Stage 3: Creating call list
         setUploadProgress({
@@ -669,6 +689,8 @@ export const useCallSheetUpload = () => {
 
           // Insert call list in batches
           for (let i = 0; i < callListEntries.length; i += batchSize) {
+            checkCancelled();
+            
             const batch = callListEntries.slice(i, i + batchSize);
             const { error: callListError } = await supabase
               .from('approved_call_list')
@@ -718,6 +740,7 @@ export const useCallSheetUpload = () => {
       return upload;
     },
     onSuccess: (data) => {
+      abortControllerRef.current = null;
       toast.success(`Call sheet uploaded and approved! ${data.approved_count || 0} contacts added to your call list.`);
       setParsedData(null);
       setUploadProgress(null);
@@ -725,10 +748,24 @@ export const useCallSheetUpload = () => {
       queryClient.invalidateQueries({ queryKey: ['call-list'] });
     },
     onError: (error) => {
+      abortControllerRef.current = null;
       setUploadProgress(null);
-      toast.error(`Upload failed: ${error.message}`);
+      setIsCancelling(false);
+      if (error.message === 'Upload cancelled') {
+        toast.info('Upload cancelled');
+      } else {
+        toast.error(`Upload failed: ${error.message}`);
+      }
     },
   });
+
+  // Cancel upload function
+  const cancelUpload = useCallback(() => {
+    if (abortControllerRef.current) {
+      setIsCancelling(true);
+      abortControllerRef.current.abort();
+    }
+  }, []);
 
   const clearParsedData = useCallback(() => {
     setParsedData(null);
@@ -789,5 +826,7 @@ export const useCallSheetUpload = () => {
     fetchRejectionDetails,
     resubmitUpload: resubmitUpload.mutate,
     isResubmitting: resubmitUpload.isPending,
+    cancelUpload,
+    isCancelling,
   };
 };
