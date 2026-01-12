@@ -1391,6 +1391,7 @@ export type Database = {
         | "converted"
         | "lost"
         | "approved"
+        | "declined"
       message_direction: "inbound" | "outbound"
       submission_group: "group1" | "group2"
       team_type: "remote" | "office"
@@ -1557,6 +1558,7 @@ export const Constants = {
         "converted",
         "lost",
         "approved",
+        "declined",
       ],
       message_direction: ["inbound", "outbound"],
       submission_group: ["group1", "group2"],

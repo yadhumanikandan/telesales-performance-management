@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'converted' | 'approved' | 'lost';
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'converted' | 'approved' | 'lost' | 'declined';
 export type ProductType = 'account' | 'loan';
 export type BankName = 'RAK' | 'NBF' | 'UBL' | 'RUYA' | 'MASHREQ' | 'WIO';
 export type LeadSource = `${ProductType}_${BankName}`;
@@ -257,6 +257,7 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
           qualified: '✅ Lead Submitted!',
           converted: '📋 Lead Assessing!',
           approved: '🎉 Lead Approved!',
+          declined: '❌ Lead Declined',
           lost: 'Marked as Lost',
         };
         toast.success(statusLabels[variables.updates.lead_status]);

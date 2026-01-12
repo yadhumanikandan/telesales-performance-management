@@ -61,6 +61,7 @@ const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; icon:
   { status: 'contacted', label: 'Contacted', color: 'bg-yellow-500', icon: Phone },
   { status: 'qualified', label: 'Qualified', color: 'bg-purple-500', icon: CheckCircle },
   { status: 'converted', label: 'Converted', color: 'bg-green-500', icon: Target },
+  { status: 'declined', label: 'Declined', color: 'bg-rose-500', icon: XCircle },
   { status: 'lost', label: 'Lost', color: 'bg-red-500', icon: XCircle },
 ];
 
@@ -211,6 +212,7 @@ export const LeadsPage = () => {
       qualified: 'default',
       converted: 'secondary',
       approved: 'default',
+      declined: 'destructive',
       lost: 'destructive',
     };
     return variants[status];

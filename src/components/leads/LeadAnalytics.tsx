@@ -38,6 +38,7 @@ const STAGE_COLORS: Record<LeadStatus, string> = {
   qualified: '#a855f7',
   converted: '#f97316',
   approved: '#22c55e',
+  declined: '#f43f5e',
   lost: '#ef4444',
 };
 
@@ -47,6 +48,7 @@ const STAGE_LABELS: Record<LeadStatus, string> = {
   qualified: 'Submitted',
   converted: 'Assessing',
   approved: 'Approved',
+  declined: 'Declined',
   lost: 'Lost',
 };
 
