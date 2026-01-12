@@ -54,6 +54,7 @@ const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; bgCol
   { status: 'qualified', label: 'Submitted', color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/30', icon: CheckCircle },
   { status: 'converted', label: 'Assessing', color: 'text-orange-600', bgColor: 'bg-orange-50 dark:bg-orange-950/30', icon: Target },
   { status: 'approved', label: 'Approved', color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/30', icon: CheckCircle },
+  { status: 'declined', label: 'Declined', color: 'text-rose-600', bgColor: 'bg-rose-50 dark:bg-rose-950/30', icon: XCircle },
   { status: 'lost', label: 'Lost', color: 'text-red-600', bgColor: 'bg-red-50 dark:bg-red-950/30', icon: XCircle },
 ];
 
