@@ -24,26 +24,40 @@ services:
   # SUPABASE SERVICES
   # ===========================================
   
-  # PostgreSQL Database
+  # PostgreSQL Database (Supabase-specific image with all required roles)
   db:
-    image: postgres:15-alpine
+    image: supabase/postgres:15.6.1.143
     ports:
       - "5432:5432"
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - log_min_messages=fatal
     environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-password}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-password}
+      PGDATABASE: postgres
       POSTGRES_DB: postgres
-      POSTGRES_USER: postgres
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters}
+      JWT_EXP: 3600
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./init-scripts:/docker-entrypoint-initdb.d
+      - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+      - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/98-roles.sql:Z
+      - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
     networks:
       - app-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD", "pg_isready", "-U", "postgres", "-h", "localhost"]
+      interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   # Supabase Studio (Admin UI)
   studio:
@@ -53,15 +67,21 @@ services:
     environment:
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-password}
-      DEFAULT_ORGANIZATION_NAME: "Your Organization"
-      DEFAULT_PROJECT_NAME: "Sales Performance Tracker"
+      DEFAULT_ORGANIZATION_NAME: ${ORGANIZATION_NAME:-Your Organization}
+      DEFAULT_PROJECT_NAME: ${PROJECT_NAME:-Sales Performance Tracker}
       SUPABASE_URL: http://kong:8000
       SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:-http://localhost:8000}
       SUPABASE_ANON_KEY: ${ANON_KEY}
       SUPABASE_SERVICE_KEY: ${SERVICE_ROLE_KEY}
+      LOGFLARE_API_KEY: ${LOGFLARE_API_KEY:-}
+      LOGFLARE_URL: http://analytics:4000
+      NEXT_PUBLIC_ENABLE_LOGS: true
+      NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
     depends_on:
-      - db
-      - meta
+      db:
+        condition: service_healthy
+      meta:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
@@ -82,17 +102,24 @@ services:
     volumes:
       - ./kong.yml:/var/lib/kong/kong.yml:ro
     depends_on:
-      - auth
-      - rest
-      - realtime
-      - storage
+      auth:
+        condition: service_started
+      rest:
+        condition: service_started
+      realtime:
+        condition: service_started
+      storage:
+        condition: service_started
     networks:
       - app-network
     restart: unless-stopped
 
-  # Supabase Auth
+  # Supabase Auth (GoTrue)
   auth:
     image: supabase/gotrue:v2.164.0
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -119,9 +146,8 @@ services:
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
-    depends_on:
-      db:
-        condition: service_healthy
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: false
+      GOTRUE_PASSWORD_MIN_LENGTH: 6
     networks:
       - app-network
     restart: unless-stopped
@@ -129,6 +155,9 @@ services:
   # PostgREST (REST API)
   rest:
     image: postgrest/postgrest:v12.2.0
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-your-super-secret-password}@db:5432/postgres
       PGRST_DB_SCHEMAS: public,storage,graphql_public
@@ -137,9 +166,6 @@ services:
       PGRST_DB_USE_LEGACY_GUCS: "false"
       PGRST_APP_SETTINGS_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters}
       PGRST_APP_SETTINGS_JWT_EXP: 3600
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
@@ -147,6 +173,9 @@ services:
   # Realtime
   realtime:
     image: supabase/realtime:v2.30.34
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       PORT: 4000
       DB_HOST: db
@@ -157,20 +186,23 @@ services:
       DB_AFTER_CONNECT_QUERY: 'SET search_path TO _realtime'
       DB_ENC_KEY: supabaserealtime
       API_JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters}
-      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-your-super-secret-key-base}
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-UpNVntn3cDxHJpq99YMc1T1AQgQpc8kfYTuRgBiYa15BLrx8etQoXz3gZv1/u2oq}
       ERL_AFLAGS: -proto_dist inet_tcp
       ENABLE_TAILSCALE: "false"
       DNS_NODES: "''"
-    depends_on:
-      db:
-        condition: service_healthy
+      RLIMIT_NOFILE: 10000
     networks:
       - app-network
     restart: unless-stopped
 
-  # Storage
+  # Storage API
   storage:
     image: supabase/storage-api:v1.11.13
+    depends_on:
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
     environment:
       ANON_KEY: ${ANON_KEY}
       SERVICE_KEY: ${SERVICE_ROLE_KEY}
@@ -184,13 +216,23 @@ services:
       REGION: stub
       GLOBAL_S3_BUCKET: stub
       ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: http://imgproxy:8080
     volumes:
       - storage-data:/var/lib/storage
-    depends_on:
-      db:
-        condition: service_healthy
-      rest:
-        condition: service_started
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Image Proxy for Storage
+  imgproxy:
+    image: darthsim/imgproxy:v3.8.0
+    environment:
+      IMGPROXY_BIND: ":8080"
+      IMGPROXY_LOCAL_FILESYSTEM_ROOT: /
+      IMGPROXY_USE_ETAG: "true"
+      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+    volumes:
+      - storage-data:/var/lib/storage
     networks:
       - app-network
     restart: unless-stopped
@@ -198,6 +240,9 @@ services:
   # Postgres Meta (for Studio)
   meta:
     image: supabase/postgres-meta:v0.83.2
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       PG_META_PORT: 8080
       PG_META_DB_HOST: db
@@ -205,9 +250,6 @@ services:
       PG_META_DB_NAME: postgres
       PG_META_DB_USER: supabase_admin
       PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-password}
-    depends_on:
-      db:
-        condition: service_healthy
     networks:
       - app-network
     restart: unless-stopped
@@ -215,6 +257,9 @@ services:
   # Edge Functions (Deno)
   functions:
     image: supabase/edge-runtime:v1.58.3
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token-with-at-least-32-characters}
       SUPABASE_URL: http://kong:8000
@@ -224,8 +269,6 @@ services:
       VERIFY_JWT: "false"
     volumes:
       - ../supabase/functions:/home/deno/functions:ro
-    depends_on:
-      - db
     networks:
       - app-network
     restart: unless-stopped

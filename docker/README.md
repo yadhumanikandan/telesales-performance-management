@@ -1,98 +1,139 @@
 # Self-Hosted Sales Performance Tracker
 
-Complete Docker setup for running the Sales Performance Tracker on your internal network.
+Complete Docker deployment for running the Sales Performance Tracker on your internal network.
 
-## 📋 Prerequisites
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                     Internal Network                             │
+│                                                                  │
+│  ┌─────────────┐     ┌─────────────┐     ┌─────────────┐       │
+│  │  Frontend   │────▶│    Kong     │────▶│   Auth      │       │
+│  │  (nginx)    │     │  Gateway    │     │  (GoTrue)   │       │
+│  │  :3000      │     │  :8000      │     │             │       │
+│  └─────────────┘     └──────┬──────┘     └─────────────┘       │
+│                             │                                    │
+│              ┌──────────────┼──────────────┐                    │
+│              ▼              ▼              ▼                    │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │   REST      │  │  Realtime   │  │  Storage    │             │
+│  │ (PostgREST) │  │  (Phoenix)  │  │   API       │             │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
+│         │                │                │                     │
+│         └────────────────┼────────────────┘                     │
+│                          ▼                                       │
+│              ┌─────────────────────┐                            │
+│              │    PostgreSQL       │                            │
+│              │    (Supabase)       │                            │
+│              │      :5432          │                            │
+│              └─────────────────────┘                            │
+│                                                                  │
+│  ┌─────────────┐     ┌─────────────┐                            │
+│  │   Studio    │     │  Functions  │                            │
+│  │ (Admin UI)  │     │   (Deno)    │                            │
+│  │   :3001     │     │             │                            │
+│  └─────────────┘     └─────────────┘                            │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Prerequisites
 
 - Docker Engine 20.10+
 - Docker Compose 2.0+
 - At least 4GB RAM available
 - 10GB disk space
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1. Clone and Navigate
-
-```bash
-git clone <your-repo-url>
-cd <repo-name>/docker
-```
-
-### 2. Configure Environment
+### 1. Configure Environment
 
 ```bash
+# Navigate to docker directory
+cd docker
+
 # Copy the example environment file
 cp .env.example .env
 
-# Edit with your settings
+# Edit .env with your settings
 nano .env
 ```
 
-**Important settings to change:**
-
-| Variable | Description |
-|----------|-------------|
-| `POSTGRES_PASSWORD` | Strong database password |
-| `JWT_SECRET` | Min 32 chars (generate: `openssl rand -base64 32`) |
-| `SECRET_KEY_BASE` | For Realtime (generate: `openssl rand -base64 64`) |
-| `SUPABASE_PUBLIC_URL` | Your server IP, e.g., `http://192.168.1.100:8000` |
-| `SITE_URL` | Frontend URL, e.g., `http://192.168.1.100:3000` |
-
-### 3. Generate API Keys
-
-Generate proper JWT keys using your `JWT_SECRET`:
+Update the following in `.env`:
 
 ```bash
-# Install jwt-cli or use an online generator
-# Keys must use the same JWT_SECRET
-# See: https://supabase.com/docs/guides/self-hosting#api-keys
+# Set your server's IP address or hostname
+SERVER_HOST=192.168.1.100
+
+# Update the URLs
+SUPABASE_PUBLIC_URL=http://192.168.1.100:8000
+SITE_URL=http://192.168.1.100:3000
+
+# Generate secure passwords (run these commands)
+POSTGRES_PASSWORD=$(openssl rand -base64 24)
+JWT_SECRET=$(openssl rand -base64 32)
+SECRET_KEY_BASE=$(openssl rand -base64 64)
 ```
 
-### 4. Start Services
+### 2. Create Required Directories
+
+```bash
+mkdir -p volumes/db
+```
+
+### 3. Start Services
 
 ```bash
 # Start all services
 docker compose up -d
 
-# View logs
+# Check service status
+docker compose ps
+
+# View logs (wait for all services to be healthy)
 docker compose logs -f
 ```
 
-### 5. Initialize Database Schema
-
-After services are running, apply the database migrations:
-
-```bash
-# Connect to the database
-docker compose exec db psql -U postgres -d postgres
-
-# Or use the Supabase Studio at http://YOUR_SERVER_IP:3001
-```
-
-## 📍 Service URLs
+### 4. Access the Application
 
 | Service | URL | Description |
 |---------|-----|-------------|
-| **Frontend App** | `http://YOUR_IP:3000` | Main application |
-| **Supabase Studio** | `http://YOUR_IP:3001` | Database admin UI |
-| **Supabase API** | `http://YOUR_IP:8000` | REST/Auth/Storage API |
-| **PostgreSQL** | `YOUR_IP:5432` | Direct DB access |
+| Frontend | http://YOUR_SERVER_IP:3000 | Main application |
+| Studio | http://YOUR_SERVER_IP:3001 | Database admin UI |
+| API | http://YOUR_SERVER_IP:8000 | Supabase API endpoint |
 
-## 📁 Project Structure
+## Initial Setup
 
+### Create First User
+
+1. Open the application at `http://YOUR_SERVER_IP:3000`
+2. Click "Sign Up" and create the first user
+3. The user will be automatically confirmed (no email required)
+
+### Assign Admin Role
+
+Access Studio at `http://YOUR_SERVER_IP:3001` and run this SQL:
+
+```sql
+-- Assign admin role to first user
+INSERT INTO user_roles (user_id, role)
+SELECT id, 'admin'::app_role
+FROM auth.users
+WHERE email = 'your-admin@email.com';
 ```
-docker/
-├── docker-compose.yml    # All services definition
-├── Dockerfile            # Frontend build
-├── nginx.conf            # Frontend web server config
-├── kong.yml              # API Gateway routing
-├── .env.example          # Environment template
-├── init-scripts/         # Database initialization
-│   ├── 01-init.sql       # Roles and extensions
-│   └── 02-setup-passwords.sh # Role passwords
-```
 
-## 🔧 Common Commands
+## Service Ports
+
+| Port | Service | Description |
+|------|---------|-------------|
+| 3000 | Frontend | Main web application |
+| 3001 | Studio | Supabase Studio admin UI |
+| 5432 | PostgreSQL | Database (direct access) |
+| 8000 | Kong | API Gateway (HTTP) |
+| 8443 | Kong | API Gateway (HTTPS) |
+
+## Common Commands
 
 ```bash
 # Start all services
@@ -120,99 +161,106 @@ docker compose exec db pg_dump -U postgres postgres > backup.sql
 docker compose exec -T db psql -U postgres postgres < backup.sql
 ```
 
-## 🗄️ Database Migrations
+## Data Persistence
 
-To apply the application's database schema:
+Data is stored in Docker volumes:
+- `postgres-data`: Database files
+- `storage-data`: Uploaded files
 
-1. Open Supabase Studio at `http://YOUR_IP:3001`
-2. Navigate to SQL Editor
-3. Copy and run each migration file from `supabase/migrations/` in order
+## Generate Production API Keys
 
-Or use the command line:
+For production, generate your own JWT keys using your `JWT_SECRET`:
 
-```bash
-# Apply all migrations
-for f in ../supabase/migrations/*.sql; do
-  docker compose exec -T db psql -U postgres -d postgres < "$f"
-done
+1. Go to [jwt.io](https://jwt.io)
+2. Set algorithm to **HS256**
+3. Enter your `JWT_SECRET` in the "Verify Signature" section
+4. Create tokens with these payloads:
+
+**Anon Key (public):**
+```json
+{
+  "role": "anon",
+  "iss": "supabase",
+  "iat": 1700000000,
+  "exp": 2000000000
+}
 ```
 
-## 🔐 Security Recommendations
-
-1. **Change all default passwords** in `.env`
-2. **Use a firewall** to restrict access to internal network only
-3. **Enable HTTPS** using a reverse proxy (nginx/traefik) with SSL certificates
-4. **Regular backups** of the PostgreSQL data volume
-5. **Keep images updated** for security patches
-
-### Adding HTTPS (Optional)
-
-For production, add a reverse proxy with SSL:
-
-```yaml
-# Add to docker-compose.yml
-traefik:
-  image: traefik:v2.10
-  ports:
-    - "80:80"
-    - "443:443"
-  volumes:
-    - /var/run/docker.sock:/var/run/docker.sock
-    - ./traefik:/etc/traefik
+**Service Role Key (private - never expose):**
+```json
+{
+  "role": "service_role",
+  "iss": "supabase",
+  "iat": 1700000000,
+  "exp": 2000000000
+}
 ```
 
-## 🔄 Updating the Application
+## Troubleshooting
+
+### Check Service Health
 
 ```bash
-# Pull latest code
-git pull origin main
+# View all service logs
+docker compose logs -f
 
-# Rebuild and restart frontend
-docker compose up -d --build frontend
-
-# Apply any new migrations
-for f in ../supabase/migrations/*.sql; do
-  docker compose exec -T db psql -U postgres -d postgres < "$f"
-done
+# Check specific service
+docker compose logs -f db
+docker compose logs -f auth
+docker compose logs -f rest
 ```
 
-## 🐛 Troubleshooting
-
-### Services won't start
+### Database Connection Issues
 
 ```bash
-# Check service status
-docker compose ps
+# Test database connectivity
+docker compose exec db psql -U postgres -c "SELECT version();"
 
-# Check logs for errors
-docker compose logs db
-docker compose logs auth
+# Check if roles exist
+docker compose exec db psql -U postgres -c "\du"
+
+# Check auth schema
+docker compose exec db psql -U postgres -c "\dt auth.*"
 ```
 
-### Database connection issues
+### Reset Everything
 
 ```bash
-# Verify database is healthy
-docker compose exec db pg_isready
+# Stop and remove all containers and volumes
+docker compose down -v --remove-orphans
 
-# Check connection from another container
-docker compose exec rest psql -h db -U postgres -c "SELECT 1"
-```
-
-### Frontend can't reach API
-
-- Verify `SUPABASE_PUBLIC_URL` is accessible from your browser
-- Check Kong logs: `docker compose logs kong`
-- Ensure ports 3000 and 8000 are not blocked by firewall
-
-### Clear everything and start fresh
-
-```bash
-docker compose down -v
+# Restart fresh
 docker compose up -d
 ```
 
-## 📞 Support
+## Production Checklist
 
-For issues specific to this application, check the main repository issues.
-For Supabase self-hosting, see: https://supabase.com/docs/guides/self-hosting
+### Security
+- [ ] Change all default passwords in `.env`
+- [ ] Generate new JWT keys with your `JWT_SECRET`
+- [ ] Configure firewall to only allow required ports
+- [ ] Set up HTTPS with reverse proxy (nginx/traefik)
+- [ ] Set `DISABLE_SIGNUP=true` for invite-only mode
+
+### Backup
+- [ ] Set up automated database backups
+- [ ] Configure backup retention policy
+- [ ] Test restore procedures regularly
+
+### Monitoring
+- [ ] Set up container health monitoring
+- [ ] Configure log aggregation
+- [ ] Set up alerting for service failures
+
+## Updating
+
+```bash
+# Pull latest images
+docker compose pull
+
+# Restart with new images
+docker compose up -d --build
+
+# Check logs for any issues
+docker compose logs -f
+```
