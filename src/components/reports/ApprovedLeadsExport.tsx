@@ -309,6 +309,56 @@ export const ApprovedLeadsExport: React.FC = () => {
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [approvedLeads]);
 
+  // Calculate area-wise summary breakdown (grouped by city)
+  const areaSummary = React.useMemo(() => {
+    if (!approvedLeads || approvedLeads.length === 0) return [];
+    
+    const summaryMap = new Map<string, { city: string; area: string; count: number; dealValue: number }>();
+    
+    approvedLeads.forEach(lead => {
+      const city = lead.city || 'Unknown';
+      const area = lead.area || 'Unknown';
+      const key = `${city}|${area}`;
+      const existing = summaryMap.get(key) || { city, area, count: 0, dealValue: 0 };
+      summaryMap.set(key, {
+        city,
+        area,
+        count: existing.count + 1,
+        dealValue: existing.dealValue + (lead.dealValue || 0),
+      });
+    });
+    
+    return Array.from(summaryMap.values())
+      .map(data => ({
+        ...data,
+        displayName: `${data.city} - ${data.area}`,
+        percentage: ((data.count / approvedLeads.length) * 100).toFixed(1),
+      }))
+      .sort((a, b) => {
+        // Sort by city first, then by count within city
+        if (a.city !== b.city) return a.city.localeCompare(b.city);
+        return b.count - a.count;
+      });
+  }, [approvedLeads]);
+
+  // Group areas by city for hierarchical display
+  const areasByCity = React.useMemo(() => {
+    const grouped = new Map<string, typeof areaSummary>();
+    areaSummary.forEach(item => {
+      const existing = grouped.get(item.city) || [];
+      existing.push(item);
+      grouped.set(item.city, existing);
+    });
+    return Array.from(grouped.entries())
+      .map(([city, areas]) => ({
+        city,
+        areas,
+        totalCount: areas.reduce((sum, a) => sum + a.count, 0),
+        totalDealValue: areas.reduce((sum, a) => sum + a.dealValue, 0),
+      }))
+      .sort((a, b) => b.totalCount - a.totalCount);
+  }, [areaSummary]);
+
   const exportToExcel = () => {
     if (!approvedLeads || approvedLeads.length === 0) {
       toast.error('No data to export');
@@ -487,6 +537,35 @@ export const ApprovedLeadsExport: React.FC = () => {
           { wch: 12 },  // Percentage
         ];
         XLSX.utils.book_append_sheet(workbook, dateSheet, 'Date Summary');
+      }
+
+      // Add area summary sheet
+      if (areaSummary.length > 0) {
+        const areaData = [
+          ...areaSummary.map(item => ({
+            'City': item.city,
+            'Area': item.area,
+            'Count': item.count,
+            'Deal Value': item.dealValue,
+            'Percentage': `${item.percentage}%`,
+          })),
+          {
+            'City': 'TOTAL',
+            'Area': '-',
+            'Count': approvedLeads.length,
+            'Deal Value': totalDealValue,
+            'Percentage': '100%',
+          }
+        ];
+        const areaSheet = XLSX.utils.json_to_sheet(areaData);
+        areaSheet['!cols'] = [
+          { wch: 15 },  // City
+          { wch: 20 },  // Area
+          { wch: 10 },  // Count
+          { wch: 15 },  // Deal Value
+          { wch: 12 },  // Percentage
+        ];
+        XLSX.utils.book_append_sheet(workbook, areaSheet, 'Area Summary');
       }
 
       // Generate filename with filters
@@ -1284,6 +1363,163 @@ export const ApprovedLeadsExport: React.FC = () => {
                     ))}
                     <TableRow className="font-bold bg-muted/50">
                       <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">{approvedLeads?.length || 0}</TableCell>
+                      <TableCell className="text-right text-green-600">
+                        {totalDealValue.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">100%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Area-wise Summary Breakdown */}
+      {areaSummary.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              Area-wise Breakdown
+            </CardTitle>
+            <CardDescription>
+              Granular breakdown by area within each city showing count and deal value totals
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {/* Grouped by City */}
+            <div className="space-y-6">
+              {areasByCity.slice(0, 5).map((cityGroup) => (
+                <div key={cityGroup.city} className="border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="text-base px-3 py-1">
+                        {cityGroup.city}
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {cityGroup.areas.length} areas
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{cityGroup.totalCount} leads</p>
+                      <p className="text-sm text-green-600">{cityGroup.totalDealValue.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {cityGroup.areas.slice(0, 6).map((item) => (
+                      <div
+                        key={`${item.city}-${item.area}`}
+                        className="p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-medium text-sm truncate">{item.area}</span>
+                          <Badge variant="secondary" className="text-xs">
+                            {item.percentage}%
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Count:</span>
+                          <span className="font-medium">{item.count}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Value:</span>
+                          <span className="font-medium text-green-600">{item.dealValue.toLocaleString()}</span>
+                        </div>
+                        <div className="mt-2 h-1.5 bg-background rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-cyan-500 transition-all"
+                            style={{ width: `${Math.min(parseFloat(item.percentage) * 5, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {cityGroup.areas.length > 6 && (
+                    <p className="text-center text-xs text-muted-foreground mt-3">
+                      +{cityGroup.areas.length - 6} more areas
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+            {areasByCity.length > 5 && (
+              <p className="text-center text-sm text-muted-foreground mt-4">
+                Showing top 5 cities. See table below for complete list.
+              </p>
+            )}
+            
+            {/* Area Chart */}
+            <div className="mt-6 h-[350px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={areaSummary.slice(0, 15)} 
+                  layout="vertical" 
+                  margin={{ left: 30, right: 20 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis type="number" />
+                  <YAxis 
+                    dataKey="displayName" 
+                    type="category" 
+                    width={150} 
+                    tick={{ fontSize: 10 }} 
+                  />
+                  <Tooltip 
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-background border rounded-lg shadow-lg p-3">
+                            <p className="font-semibold">{data.city}</p>
+                            <p className="text-sm text-muted-foreground">{data.area}</p>
+                            <p className="text-sm">Count: {data.count}</p>
+                            <p className="text-sm text-green-600">Deal Value: {data.dealValue.toLocaleString()}</p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar dataKey="count" name="Count" radius={[0, 4, 4, 0]}>
+                    {areaSummary.slice(0, 15).map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            
+            <div className="mt-6 pt-4 border-t">
+              <ScrollArea className="h-[350px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>City</TableHead>
+                      <TableHead>Area</TableHead>
+                      <TableHead className="text-right">Count</TableHead>
+                      <TableHead className="text-right">Deal Value</TableHead>
+                      <TableHead className="text-right">%</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {areaSummary.map((item) => (
+                      <TableRow key={`${item.city}-${item.area}`}>
+                        <TableCell className="font-medium">{item.city}</TableCell>
+                        <TableCell>{item.area}</TableCell>
+                        <TableCell className="text-right">{item.count}</TableCell>
+                        <TableCell className="text-right text-green-600">
+                          {item.dealValue.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">{item.percentage}%</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-bold bg-muted/50">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell>-</TableCell>
                       <TableCell className="text-right">{approvedLeads?.length || 0}</TableCell>
                       <TableCell className="text-right text-green-600">
                         {totalDealValue.toLocaleString()}
