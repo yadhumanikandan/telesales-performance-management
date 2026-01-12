@@ -1,11 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { format, getDay } from 'date-fns';
+import { startOfWeek, startOfMonth, format, isAfter, isBefore, getDay } from 'date-fns';
 import { toast } from 'sonner';
 
 export type SubmissionGroup = 'group1' | 'group2';
 export type SubmissionPeriod = 'weekly' | 'monthly';
+
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected';
 
 export interface AgentSubmission {
@@ -34,7 +35,23 @@ export const useAgentSubmissions = (period: SubmissionPeriod = 'weekly') => {
   const { data: submissions, isLoading, refetch } = useQuery({
     queryKey: ['agent-submissions', user?.id, period],
     queryFn: async (): Promise<AgentSubmission[]> => {
-      return api.get<AgentSubmission[]>('/submissions', { period });
+      let startDate: Date;
+      
+      if (period === 'weekly') {
+        startDate = startOfWeek(new Date(), { weekStartsOn: 0 });
+      } else {
+        startDate = startOfMonth(new Date());
+      }
+
+      const { data, error } = await supabase
+        .from('agent_submissions')
+        .select('*')
+        .eq('agent_id', user?.id)
+        .gte('submission_date', format(startDate, 'yyyy-MM-dd'))
+        .order('submission_date', { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as AgentSubmission[];
     },
     enabled: !!user?.id,
   });
@@ -45,14 +62,26 @@ export const useAgentSubmissions = (period: SubmissionPeriod = 'weekly') => {
       bank_name: string;
       notes?: string;
     }) => {
-      return api.post('/submissions', submission);
+      const { data, error } = await supabase
+        .from('agent_submissions')
+        .insert({
+          agent_id: user?.id,
+          submission_group: submission.submission_group,
+          bank_name: submission.bank_name,
+          notes: submission.notes || null,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-submissions'] });
       toast.success('Submission recorded successfully!');
     },
     onError: (error: any) => {
-      if (error.message?.includes('duplicate')) {
+      if (error.code === '23505') {
         toast.error('You have already submitted for this bank today');
       } else {
         toast.error('Failed to record submission');
@@ -62,7 +91,12 @@ export const useAgentSubmissions = (period: SubmissionPeriod = 'weekly') => {
 
   const deleteSubmission = useMutation({
     mutationFn: async (id: string) => {
-      return api.delete(`/submissions/${id}`);
+      const { error } = await supabase
+        .from('agent_submissions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['agent-submissions'] });
@@ -73,10 +107,12 @@ export const useAgentSubmissions = (period: SubmissionPeriod = 'weekly') => {
     },
   });
 
+  // Check if today's submission is missing (except Sunday)
   const checkMissingSubmission = (): boolean => {
     const today = new Date();
     const dayOfWeek = getDay(today);
     
+    // Skip Sunday (0)
     if (dayOfWeek === 0) return false;
 
     const todayStr = format(today, 'yyyy-MM-dd');

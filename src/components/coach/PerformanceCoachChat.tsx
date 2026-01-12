@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 
@@ -34,7 +34,7 @@ interface Conversation {
   updated_at: string;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/performance-coach`;
 
 const SUGGESTED_QUESTIONS = [
   "How am I doing today?",
@@ -63,7 +63,14 @@ export const PerformanceCoachChat: React.FC = () => {
     
     setIsLoadingHistory(true);
     try {
-      const data = await api.get<Conversation[]>('/coach/conversations');
+      const { data, error } = await supabase
+        .from('coach_conversations')
+        .select('*')
+        .eq('agent_id', user.id)
+        .order('updated_at', { ascending: false })
+        .limit(20);
+
+      if (error) throw error;
       setConversations(data || []);
     } catch (error) {
       console.error('Error loading conversations:', error);
@@ -75,7 +82,14 @@ export const PerformanceCoachChat: React.FC = () => {
   // Load messages for a conversation
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
-      const data = await api.get<{ role: string; content: string }[]>(`/coach/conversations/${conversationId}/messages`);
+      const { data, error } = await supabase
+        .from('coach_messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+      
       setMessages(data?.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })) || []);
       setCurrentConversationId(conversationId);
       setShowHistory(false);
@@ -90,11 +104,18 @@ export const PerformanceCoachChat: React.FC = () => {
     if (!user) return null;
 
     try {
+      // Generate title from first message (truncate to 50 chars)
       const title = firstMessage.length > 50 
         ? firstMessage.substring(0, 47) + '...' 
         : firstMessage;
 
-      const data = await api.post<{ id: string }>('/coach/conversations', { title });
+      const { data, error } = await supabase
+        .from('coach_conversations')
+        .insert({ agent_id: user.id, title })
+        .select()
+        .single();
+
+      if (error) throw error;
       return data.id;
     } catch (error) {
       console.error('Error creating conversation:', error);
@@ -105,7 +126,15 @@ export const PerformanceCoachChat: React.FC = () => {
   // Save a message to the database
   const saveMessage = async (conversationId: string, role: 'user' | 'assistant', content: string) => {
     try {
-      await api.post(`/coach/conversations/${conversationId}/messages`, { role, content });
+      await supabase
+        .from('coach_messages')
+        .insert({ conversation_id: conversationId, role, content });
+
+      // Update conversation updated_at
+      await supabase
+        .from('coach_conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', conversationId);
     } catch (error) {
       console.error('Error saving message:', error);
     }
@@ -114,7 +143,13 @@ export const PerformanceCoachChat: React.FC = () => {
   // Delete a conversation
   const deleteConversation = async (conversationId: string) => {
     try {
-      await api.delete(`/coach/conversations/${conversationId}`);
+      const { error } = await supabase
+        .from('coach_conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (error) throw error;
+
       setConversations(prev => prev.filter(c => c.id !== conversationId));
       
       if (currentConversationId === conversationId) {
@@ -147,17 +182,17 @@ export const PerformanceCoachChat: React.FC = () => {
   }, [isOpen, user, loadConversations]);
 
   const streamChat = async (userMessages: Message[]) => {
-    if (!user) {
+    if (!session?.access_token) {
       toast.error('Please log in to use the coach');
       return;
     }
 
-    const resp = await fetch(`${API_URL}/coach/chat`, {
+    const resp = await fetch(CHAT_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
       },
-      credentials: 'include',
       body: JSON.stringify({ messages: userMessages }),
     });
 
