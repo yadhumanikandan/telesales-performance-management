@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,6 +61,7 @@ import {
   Edit3,
   CheckSquare,
   Square,
+  Users,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportContactsToCSV, exportContactsToExcel, ContactExportData } from '@/utils/contactsExport';
@@ -126,6 +129,23 @@ export const CallListPage: React.FC = () => {
   const [exportFormat, setExportFormat] = useState<'csv' | 'excel'>('csv');
   const [exportStartDate, setExportStartDate] = useState<Date | undefined>(undefined);
   const [exportEndDate, setExportEndDate] = useState<Date | undefined>(undefined);
+  const [exportTeamId, setExportTeamId] = useState<string>('all');
+  const [isLoadingTeamData, setIsLoadingTeamData] = useState(false);
+  const [teamCallList, setTeamCallList] = useState<CallListContact[]>([]);
+
+  // Fetch teams for super_admin export filter
+  const { data: teams = [] } = useQuery({
+    queryKey: ['teams-for-export'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('teams')
+        .select('id, name')
+        .order('name');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: canExport,
+  });
 
   // Get unique areas and cities from call list
   const uniqueAreas = Array.from(
@@ -175,15 +195,132 @@ export const CallListPage: React.FC = () => {
     setExportFormat(format);
     setExportStartDate(undefined);
     setExportEndDate(undefined);
+    setExportTeamId('all');
+    setTeamCallList([]);
     setExportDialogOpen(true);
   };
 
+  // Fetch team call list when team is selected
+  const fetchTeamCallList = async (teamId: string) => {
+    if (teamId === 'all') {
+      setTeamCallList([]);
+      return;
+    }
+
+    setIsLoadingTeamData(true);
+    try {
+      // Get team members
+      const { data: teamMembers, error: membersError } = await supabase
+        .from('profiles')
+        .select('id, full_name, username')
+        .eq('team_id', teamId);
+
+      if (membersError) throw membersError;
+      if (!teamMembers || teamMembers.length === 0) {
+        setTeamCallList([]);
+        setIsLoadingTeamData(false);
+        return;
+      }
+
+      const memberIds = teamMembers.map(m => m.id);
+      const today = new Date().toISOString().split('T')[0];
+
+      // Fetch call lists for all team members
+      const { data: callListData, error: callListError } = await supabase
+        .from('approved_call_list')
+        .select('*')
+        .in('agent_id', memberIds)
+        .eq('list_date', today)
+        .order('call_order', { ascending: true });
+
+      if (callListError) throw callListError;
+
+      if (!callListData || callListData.length === 0) {
+        setTeamCallList([]);
+        setIsLoadingTeamData(false);
+        return;
+      }
+
+      // Get contact IDs
+      const contactIds = callListData.map(c => c.contact_id);
+
+      // Fetch contact details
+      const { data: contacts, error: contactsError } = await supabase
+        .from('master_contacts')
+        .select('*')
+        .in('id', contactIds);
+
+      if (contactsError) throw contactsError;
+
+      // Fetch feedback
+      const dayStart = startOfDay(new Date()).toISOString();
+      const dayEnd = endOfDay(new Date()).toISOString();
+
+      const { data: feedback } = await supabase
+        .from('call_feedback')
+        .select('*')
+        .in('agent_id', memberIds)
+        .in('contact_id', contactIds)
+        .gte('call_timestamp', dayStart)
+        .lte('call_timestamp', dayEnd)
+        .order('call_timestamp', { ascending: false });
+
+      // Create maps
+      const contactMap = new Map(contacts?.map(c => [c.id, c]) || []);
+      const feedbackMap = new Map<string, { status: FeedbackStatus; notes: string | null }>();
+      const agentMap = new Map(teamMembers.map(m => [m.id, m.full_name || m.username]));
+
+      feedback?.forEach(f => {
+        if (!feedbackMap.has(f.contact_id)) {
+          feedbackMap.set(f.contact_id, {
+            status: f.feedback_status as FeedbackStatus,
+            notes: f.notes
+          });
+        }
+      });
+
+      const result: (CallListContact & { agentName?: string })[] = callListData.map(item => {
+        const contact = contactMap.get(item.contact_id);
+        const fb = feedbackMap.get(item.contact_id);
+
+        return {
+          id: item.id,
+          callListId: item.id,
+          contactId: item.contact_id,
+          companyName: contact?.company_name || 'Unknown',
+          contactPersonName: contact?.contact_person_name || 'Unknown',
+          phoneNumber: contact?.phone_number || '',
+          tradeLicenseNumber: contact?.trade_license_number || '',
+          city: contact?.city || null,
+          industry: contact?.industry || null,
+          area: (contact as { area?: string | null })?.area || null,
+          callOrder: item.call_order,
+          callStatus: item.call_status as 'pending' | 'called' | 'skipped',
+          calledAt: item.called_at,
+          lastFeedback: fb?.status || null,
+          lastNotes: fb?.notes || null,
+          agentName: agentMap.get(item.agent_id) || 'Unknown Agent',
+        };
+      });
+
+      setTeamCallList(result);
+    } catch (error) {
+      console.error('Error fetching team call list:', error);
+      toast.error('Failed to fetch team data');
+    } finally {
+      setIsLoadingTeamData(false);
+    }
+  };
+
   const handleExport = () => {
+    // Use team call list if a team is selected, otherwise use filtered list
+    const sourceList = exportTeamId !== 'all' ? teamCallList : filteredList;
+    
     // Filter contacts by date range if specified
-    let contactsToExport = filteredList;
+    let contactsToExport = sourceList;
     
     if (exportStartDate || exportEndDate) {
-      contactsToExport = filteredList.filter(contact => {
+      contactsToExport = sourceList.filter(contact => {
         if (!contact.calledAt) return false;
         const calledDate = new Date(contact.calledAt);
         
@@ -201,7 +338,7 @@ export const CallListPage: React.FC = () => {
       });
     }
 
-    const exportData: ContactExportData[] = contactsToExport.map(contact => ({
+    const exportData: (ContactExportData & { agentName?: string })[] = contactsToExport.map(contact => ({
       callOrder: contact.callOrder,
       companyName: contact.companyName,
       contactPersonName: contact.contactPersonName,
@@ -214,14 +351,19 @@ export const CallListPage: React.FC = () => {
       lastFeedback: contact.lastFeedback,
       lastNotes: contact.lastNotes,
       calledAt: contact.calledAt,
+      agentName: (contact as any).agentName,
     }));
 
     if (exportData.length === 0) {
-      toast.error('No contacts found for the selected date range');
+      toast.error('No contacts found for the selected filters');
       return;
     }
 
     try {
+      const teamName = exportTeamId !== 'all' 
+        ? teams.find(t => t.id === exportTeamId)?.name || 'team'
+        : '';
+      const teamSuffix = teamName ? `_${teamName.replace(/\s+/g, '_')}` : '';
       const dateRangeSuffix = exportStartDate && exportEndDate 
         ? `_${format(exportStartDate, 'yyyy-MM-dd')}_to_${format(exportEndDate, 'yyyy-MM-dd')}`
         : exportStartDate 
@@ -230,7 +372,7 @@ export const CallListPage: React.FC = () => {
         ? `_until_${format(exportEndDate, 'yyyy-MM-dd')}`
         : '';
       
-      const filename = `contacts${dateRangeSuffix}.${exportFormat === 'csv' ? 'csv' : 'xlsx'}`;
+      const filename = `call_list${teamSuffix}${dateRangeSuffix}.${exportFormat === 'csv' ? 'csv' : 'xlsx'}`;
       
       if (exportFormat === 'csv') {
         exportContactsToCSV(exportData, filename);
@@ -702,6 +844,46 @@ export const CallListPage: React.FC = () => {
           </DialogHeader>
 
           <div className="space-y-4">
+            {/* Team Filter for Super Admin */}
+            {canExport && teams.length > 0 && (
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  Select Team
+                </Label>
+                <Select 
+                  value={exportTeamId} 
+                  onValueChange={(value) => {
+                    setExportTeamId(value);
+                    fetchTeamCallList(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a team" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background">
+                    <SelectItem value="all">My Call List</SelectItem>
+                    {teams.map(team => (
+                      <SelectItem key={team.id} value={team.id}>
+                        {team.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {isLoadingTeamData && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Loading team data...
+                  </div>
+                )}
+                {exportTeamId !== 'all' && !isLoadingTeamData && (
+                  <div className="text-sm text-muted-foreground">
+                    {teamCallList.length} contacts found for this team
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quick Date Range Buttons */}
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" size="sm" onClick={() => setQuickDateRange(7)}>
@@ -821,8 +1003,12 @@ export const CallListPage: React.FC = () => {
             <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
+            <Button onClick={handleExport} disabled={isLoadingTeamData}>
+              {isLoadingTeamData ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 mr-2" />
+              )}
               Export
             </Button>
           </DialogFooter>
