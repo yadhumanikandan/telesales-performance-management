@@ -166,7 +166,13 @@ export const UploadPage: React.FC = () => {
     }
 
     setSelectedFile(file);
-    await processFile(file);
+    const result = await processFile(file);
+    
+    // Auto-submit if there are valid entries
+    if (result && result.validEntries > 0) {
+      submitUpload({ file, validationResult: result });
+      setSelectedFile(null);
+    }
   };
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
