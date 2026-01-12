@@ -14,12 +14,13 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
 import { Download, FileSpreadsheet, CalendarIcon, Filter, Building2, MapPin, Users, User, Package, BarChart3 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, Tooltip, Legend, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line, Tooltip, Legend, Cell, PieChart, Pie } from 'recharts';
 import * as XLSX from 'xlsx';
 import { ACCOUNT_BANKS, LOAN_BANKS, PRODUCT_TYPES, parseLeadSource } from '@/hooks/useLeads';
 
 // Chart colors
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
+const PRODUCT_COLORS = { account: '#3b82f6', loan: '#10b981' };
 
 interface ApprovedLead {
   id: string;
@@ -359,6 +360,33 @@ export const ApprovedLeadsExport: React.FC = () => {
       .sort((a, b) => b.totalCount - a.totalCount);
   }, [areaSummary]);
 
+  // Calculate product type summary breakdown
+  const productSummary = React.useMemo(() => {
+    if (!approvedLeads || approvedLeads.length === 0) return [];
+    
+    const summaryMap = new Map<string, { count: number; dealValue: number }>();
+    
+    approvedLeads.forEach(lead => {
+      const product = lead.productType || 'account';
+      const existing = summaryMap.get(product) || { count: 0, dealValue: 0 };
+      summaryMap.set(product, {
+        count: existing.count + 1,
+        dealValue: existing.dealValue + (lead.dealValue || 0),
+      });
+    });
+    
+    return Array.from(summaryMap.entries())
+      .map(([product, data]) => ({
+        product,
+        displayName: product.charAt(0).toUpperCase() + product.slice(1),
+        count: data.count,
+        dealValue: data.dealValue,
+        percentage: ((data.count / approvedLeads.length) * 100).toFixed(1),
+        color: PRODUCT_COLORS[product as keyof typeof PRODUCT_COLORS] || '#8b5cf6',
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [approvedLeads]);
+
   const exportToExcel = () => {
     if (!approvedLeads || approvedLeads.length === 0) {
       toast.error('No data to export');
@@ -566,6 +594,32 @@ export const ApprovedLeadsExport: React.FC = () => {
           { wch: 12 },  // Percentage
         ];
         XLSX.utils.book_append_sheet(workbook, areaSheet, 'Area Summary');
+      }
+
+      // Add product type summary sheet
+      if (productSummary.length > 0) {
+        const productData = [
+          ...productSummary.map(item => ({
+            'Product Type': item.displayName,
+            'Count': item.count,
+            'Deal Value': item.dealValue,
+            'Percentage': `${item.percentage}%`,
+          })),
+          {
+            'Product Type': 'TOTAL',
+            'Count': approvedLeads.length,
+            'Deal Value': totalDealValue,
+            'Percentage': '100%',
+          }
+        ];
+        const productSheet = XLSX.utils.json_to_sheet(productData);
+        productSheet['!cols'] = [
+          { wch: 15 },  // Product Type
+          { wch: 10 },  // Count
+          { wch: 15 },  // Deal Value
+          { wch: 12 },  // Percentage
+        ];
+        XLSX.utils.book_append_sheet(workbook, productSheet, 'Product Summary');
       }
 
       // Generate filename with filters
@@ -895,6 +949,158 @@ export const ApprovedLeadsExport: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Product Type Summary Breakdown */}
+      {productSummary.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Product Type Summary
+            </CardTitle>
+            <CardDescription>
+              Breakdown by product type (Account/Loan) with pie chart visualization
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Pie Chart */}
+              <div className="h-[300px] flex items-center justify-center">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={productSummary}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="count"
+                      nameKey="displayName"
+                      label={({ displayName, percentage }) => `${displayName}: ${percentage}%`}
+                      labelLine={true}
+                    >
+                      {productSummary.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-background border rounded-lg shadow-lg p-3">
+                              <p className="font-semibold">{data.displayName}</p>
+                              <p className="text-sm">Count: {data.count}</p>
+                              <p className="text-sm text-green-600">Deal Value: {data.dealValue.toLocaleString()}</p>
+                              <p className="text-sm text-muted-foreground">{data.percentage}% of total</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Product Cards */}
+              <div className="space-y-4">
+                {productSummary.map((item) => (
+                  <div
+                    key={item.product}
+                    className="p-5 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-4 h-4 rounded-full" 
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <Badge 
+                          variant="outline" 
+                          className="text-lg px-4 py-1 font-semibold"
+                          style={{ borderColor: item.color, color: item.color }}
+                        >
+                          {item.displayName}
+                        </Badge>
+                      </div>
+                      <span className="text-lg font-bold">
+                        {item.percentage}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-muted/50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold">{item.count}</p>
+                        <p className="text-sm text-muted-foreground">Leads</p>
+                      </div>
+                      <div className="bg-muted/50 rounded-lg p-3 text-center">
+                        <p className="text-2xl font-bold text-green-600">
+                          {item.dealValue.toLocaleString()}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Deal Value</p>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="mt-4 h-3 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full transition-all"
+                        style={{ 
+                          width: `${item.percentage}%`,
+                          backgroundColor: item.color 
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            {/* Summary Table */}
+            <div className="mt-6 pt-4 border-t">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Type</TableHead>
+                    <TableHead className="text-right">Count</TableHead>
+                    <TableHead className="text-right">Deal Value</TableHead>
+                    <TableHead className="text-right">%</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {productSummary.map((item) => (
+                    <TableRow key={item.product}>
+                      <TableCell className="font-medium">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="w-3 h-3 rounded-full" 
+                            style={{ backgroundColor: item.color }}
+                          />
+                          {item.displayName}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">{item.count}</TableCell>
+                      <TableCell className="text-right text-green-600">
+                        {item.dealValue.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">{item.percentage}%</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="font-bold bg-muted/50">
+                    <TableCell>TOTAL</TableCell>
+                    <TableCell className="text-right">{approvedLeads?.length || 0}</TableCell>
+                    <TableCell className="text-right text-green-600">
+                      {totalDealValue.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">100%</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Bank-wise Summary Breakdown */}
       {bankSummary.length > 0 && (
