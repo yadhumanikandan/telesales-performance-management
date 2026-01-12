@@ -278,6 +278,32 @@ export const ApprovedLeadsExport: React.FC = () => {
       .sort((a, b) => b.count - a.count);
   }, [approvedLeads]);
 
+  // Calculate date-wise summary breakdown
+  const dateSummary = React.useMemo(() => {
+    if (!approvedLeads || approvedLeads.length === 0) return [];
+    
+    const summaryMap = new Map<string, { count: number; dealValue: number }>();
+    
+    approvedLeads.forEach(lead => {
+      const dateKey = format(new Date(lead.approvedAt), 'yyyy-MM-dd');
+      const existing = summaryMap.get(dateKey) || { count: 0, dealValue: 0 };
+      summaryMap.set(dateKey, {
+        count: existing.count + 1,
+        dealValue: existing.dealValue + (lead.dealValue || 0),
+      });
+    });
+    
+    return Array.from(summaryMap.entries())
+      .map(([date, data]) => ({
+        date,
+        displayDate: format(new Date(date), 'PP'),
+        count: data.count,
+        dealValue: data.dealValue,
+        percentage: ((data.count / approvedLeads.length) * 100).toFixed(1),
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [approvedLeads]);
+
   const exportToExcel = () => {
     if (!approvedLeads || approvedLeads.length === 0) {
       toast.error('No data to export');
@@ -430,6 +456,32 @@ export const ApprovedLeadsExport: React.FC = () => {
           { wch: 12 },  // Percentage
         ];
         XLSX.utils.book_append_sheet(workbook, citySheet, 'City Summary');
+      }
+
+      // Add date summary sheet
+      if (dateSummary.length > 0) {
+        const dateData = [
+          ...dateSummary.map(item => ({
+            'Date': item.displayDate,
+            'Count': item.count,
+            'Deal Value': item.dealValue,
+            'Percentage': `${item.percentage}%`,
+          })),
+          {
+            'Date': 'TOTAL',
+            'Count': approvedLeads.length,
+            'Deal Value': totalDealValue,
+            'Percentage': '100%',
+          }
+        ];
+        const dateSheet = XLSX.utils.json_to_sheet(dateData);
+        dateSheet['!cols'] = [
+          { wch: 15 },  // Date
+          { wch: 10 },  // Count
+          { wch: 15 },  // Deal Value
+          { wch: 12 },  // Percentage
+        ];
+        XLSX.utils.book_append_sheet(workbook, dateSheet, 'Date Summary');
       }
 
       // Generate filename with filters
@@ -1094,6 +1146,99 @@ export const ApprovedLeadsExport: React.FC = () => {
                     {citySummary.map((item) => (
                       <TableRow key={item.city}>
                         <TableCell className="font-medium">{item.city}</TableCell>
+                        <TableCell className="text-right">{item.count}</TableCell>
+                        <TableCell className="text-right text-green-600">
+                          {item.dealValue.toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-right">{item.percentage}%</TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-bold bg-muted/50">
+                      <TableCell>TOTAL</TableCell>
+                      <TableCell className="text-right">{approvedLeads?.length || 0}</TableCell>
+                      <TableCell className="text-right text-green-600">
+                        {totalDealValue.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right">100%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </ScrollArea>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Date-wise Summary Breakdown */}
+      {dateSummary.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5" />
+              Date-wise Summary
+            </CardTitle>
+            <CardDescription>
+              Daily breakdown showing approved leads count and deal value totals
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {dateSummary.slice(0, 16).map((item) => (
+                <div
+                  key={item.date}
+                  className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <Badge className="font-semibold bg-violet-500/10 text-violet-600 hover:bg-violet-500/20">
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      {item.displayDate}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {item.percentage}%
+                    </span>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Count:</span>
+                      <span className="font-medium">{item.count}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-muted-foreground">Deal Value:</span>
+                      <span className="font-medium text-green-600">
+                        {item.dealValue.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-violet-500 transition-all"
+                      style={{ width: `${item.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            {dateSummary.length > 16 && (
+              <p className="text-center text-sm text-muted-foreground mt-4">
+                Showing top 16 dates. See table below for complete list.
+              </p>
+            )}
+            
+            <div className="mt-6 pt-4 border-t">
+              <ScrollArea className="h-[300px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead className="text-right">Count</TableHead>
+                      <TableHead className="text-right">Deal Value</TableHead>
+                      <TableHead className="text-right">%</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dateSummary.map((item) => (
+                      <TableRow key={item.date}>
+                        <TableCell className="font-medium">{item.displayDate}</TableCell>
                         <TableCell className="text-right">{item.count}</TableCell>
                         <TableCell className="text-right text-green-600">
                           {item.dealValue.toLocaleString()}
