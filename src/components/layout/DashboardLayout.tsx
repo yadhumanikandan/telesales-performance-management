@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { AppSidebar } from './AppSidebar';
 import { Loader2 } from 'lucide-react';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
+import { PerformanceCoachChat } from '@/components/coach/PerformanceCoachChat';
 
 export const DashboardLayout: React.FC = () => {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ export const DashboardLayout: React.FC = () => {
           <Outlet />
         </div>
       </main>
+      <PerformanceCoachChat />
     </div>
   );
 };
