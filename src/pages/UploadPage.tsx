@@ -44,6 +44,7 @@ import {
   Shuffle,
   FileWarning,
   RefreshCw,
+  XOctagon,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatDistanceToNow } from 'date-fns';
@@ -93,6 +94,8 @@ export const UploadPage: React.FC = () => {
     fetchRejectionDetails,
     resubmitUpload,
     isResubmitting,
+    cancelUpload,
+    isCancelling,
   } = useCallSheetUpload();
 
   // Helper to format time remaining
@@ -439,25 +442,26 @@ export const UploadPage: React.FC = () => {
                   <div className="flex items-center gap-4 mb-4">
                     <div className="relative">
                       <div className="w-14 h-14 rounded-full border-4 border-primary/20 flex items-center justify-center">
-                        {uploadProgress?.stage === 'complete' ? (
+                        {isCancelling ? (
+                          <XOctagon className="w-7 h-7 text-orange-500" />
+                        ) : uploadProgress?.stage === 'complete' ? (
                           <CheckCircle2 className="w-7 h-7 text-green-600" />
                         ) : (
                           <Loader2 className="w-7 h-7 text-primary animate-spin" />
                         )}
                       </div>
-                      <div 
-                        className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"
-                        style={{ 
-                          animationDuration: '1s',
-                          display: uploadProgress?.stage === 'complete' ? 'none' : 'block'
-                        }}
-                      />
+                      {!isCancelling && uploadProgress?.stage !== 'complete' && (
+                        <div 
+                          className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"
+                          style={{ animationDuration: '1s' }}
+                        />
+                      )}
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-lg">
-                        {uploadProgress ? getStageDisplayName(uploadProgress.stage) : 'Uploading...'}
+                        {isCancelling ? 'Cancelling...' : uploadProgress ? getStageDisplayName(uploadProgress.stage) : 'Uploading...'}
                       </p>
-                      {uploadProgress?.currentItem !== undefined && uploadProgress?.totalItems && (
+                      {uploadProgress?.currentItem !== undefined && uploadProgress?.totalItems && !isCancelling && (
                         <p className="text-sm text-muted-foreground">
                           {uploadProgress.currentItem} of {uploadProgress.totalItems} items
                           {uploadProgress.estimatedTimeRemaining && uploadProgress.estimatedTimeRemaining > 0 && (
@@ -468,10 +472,23 @@ export const UploadPage: React.FC = () => {
                         </p>
                       )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-3xl font-bold text-primary">
-                        {uploadProgress?.percentage || 0}%
-                      </p>
+                    <div className="flex items-center gap-3">
+                      {uploadProgress?.stage !== 'complete' && !isCancelling && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={cancelUpload}
+                          className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <XOctagon className="w-4 h-4" />
+                          Cancel
+                        </Button>
+                      )}
+                      <div className="text-right">
+                        <p className="text-3xl font-bold text-primary">
+                          {uploadProgress?.percentage || 0}%
+                        </p>
+                      </div>
                     </div>
                   </div>
                   
