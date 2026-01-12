@@ -12,9 +12,9 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns';
-import { Download, FileSpreadsheet, CalendarIcon, Filter, Building2, MapPin, Users, User } from 'lucide-react';
+import { Download, FileSpreadsheet, CalendarIcon, Filter, Building2, MapPin, Users, User, Package } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ACCOUNT_BANKS, LOAN_BANKS, parseLeadSource } from '@/hooks/useLeads';
+import { ACCOUNT_BANKS, LOAN_BANKS, PRODUCT_TYPES, parseLeadSource } from '@/hooks/useLeads';
 
 interface ApprovedLead {
   id: string;
@@ -42,6 +42,7 @@ export const ApprovedLeadsExport: React.FC = () => {
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(subMonths(new Date(), 1)));
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
   const [bankFilter, setBankFilter] = useState<string>('all');
+  const [productTypeFilter, setProductTypeFilter] = useState<string>('all');
   const [teamFilter, setTeamFilter] = useState<string>('all');
   const [agentFilter, setAgentFilter] = useState<string>('all');
   const [cityFilter, setCityFilter] = useState<string>('all');
@@ -82,7 +83,7 @@ export const ApprovedLeadsExport: React.FC = () => {
 
   // Fetch approved leads with filters
   const { data: approvedLeads, isLoading, refetch } = useQuery({
-    queryKey: ['approved-leads-export', dateFrom, dateTo, bankFilter, teamFilter, agentFilter, cityFilter],
+    queryKey: ['approved-leads-export', dateFrom, dateTo, bankFilter, productTypeFilter, teamFilter, agentFilter, cityFilter],
     queryFn: async (): Promise<ApprovedLead[]> => {
       // Fetch leads with status 'approved'
       const { data: leadsData, error: leadsError } = await supabase
@@ -157,6 +158,9 @@ export const ApprovedLeadsExport: React.FC = () => {
       if (bankFilter !== 'all') {
         leads = leads.filter(l => l.bankName === bankFilter);
       }
+      if (productTypeFilter !== 'all') {
+        leads = leads.filter(l => l.productType === productTypeFilter);
+      }
       if (teamFilter !== 'all') {
         leads = leads.filter(l => (l as any).teamId === teamFilter);
       }
@@ -226,6 +230,7 @@ export const ApprovedLeadsExport: React.FC = () => {
 
       // Generate filename with filters
       const filterParts = [];
+      if (productTypeFilter !== 'all') filterParts.push(productTypeFilter);
       if (bankFilter !== 'all') filterParts.push(bankFilter);
       if (teamFilter !== 'all') {
         const team = teams?.find(t => t.id === teamFilter);
@@ -293,6 +298,7 @@ export const ApprovedLeadsExport: React.FC = () => {
       const url = URL.createObjectURL(blob);
 
       const filterParts = [];
+      if (productTypeFilter !== 'all') filterParts.push(productTypeFilter);
       if (bankFilter !== 'all') filterParts.push(bankFilter);
       if (teamFilter !== 'all') {
         const team = teams?.find(t => t.id === teamFilter);
@@ -375,6 +381,27 @@ export const ApprovedLeadsExport: React.FC = () => {
                   />
                 </PopoverContent>
               </Popover>
+            </div>
+
+            {/* Product Type Filter */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Package className="h-4 w-4" />
+                Product Type
+              </Label>
+              <Select value={productTypeFilter} onValueChange={setProductTypeFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Products" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Products</SelectItem>
+                  {PRODUCT_TYPES.map(product => (
+                    <SelectItem key={product.value} value={product.value}>
+                      {product.icon} {product.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Bank Filter */}
