@@ -50,7 +50,7 @@ BEGIN
 END
 $$;
 
--- Note: Passwords are set by 00-setup-passwords.sh script
+-- Note: Passwords are set by 02-setup-passwords.sh script
 
 -- Grant role memberships
 GRANT anon TO authenticator;
