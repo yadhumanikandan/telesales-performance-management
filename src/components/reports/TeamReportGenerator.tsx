@@ -33,14 +33,20 @@ import {
   Phone,
   Target,
   TrendingUp,
+  TrendingDown,
   Clock,
   FileDown,
   Loader2,
   AlertTriangle,
   Crown,
   CalendarIcon,
+  ArrowUpRight,
+  ArrowDownRight,
+  Minus,
 } from 'lucide-react';
-import { format, subDays, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { format, subDays, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, subMonths, differenceInDays } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import jsPDF from 'jspdf';
@@ -73,11 +79,65 @@ interface TeamMemberReport {
   talkTimeMinutes: number;
 }
 
+// Helper component for comparison cards
+const ComparisonCard: React.FC<{
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  previousValue?: number;
+  showComparison: boolean;
+  valueClassName?: string;
+  suffix?: string;
+}> = ({ icon, label, value, previousValue, showComparison, valueClassName, suffix = '' }) => {
+  const getChange = () => {
+    if (!showComparison || previousValue === undefined) return null;
+    if (previousValue === 0) return value > 0 ? 100 : 0;
+    return Math.round(((value - previousValue) / previousValue) * 100);
+  };
+
+  const change = getChange();
+  const isPositive = change !== null && change > 0;
+  const isNegative = change !== null && change < 0;
+
+  return (
+    <div className="p-4 bg-muted/50 rounded-lg">
+      <div className="flex items-center gap-2 text-muted-foreground mb-1">
+        {icon}
+        <span className="text-xs">{label}</span>
+      </div>
+      <div className="flex items-end gap-2">
+        <p className={cn("text-2xl font-bold", valueClassName)}>
+          {value}{suffix}
+        </p>
+        {showComparison && change !== null && (
+          <div className={cn(
+            "flex items-center text-xs font-medium pb-1",
+            isPositive && "text-green-500",
+            isNegative && "text-red-500",
+            !isPositive && !isNegative && "text-muted-foreground"
+          )}>
+            {isPositive && <ArrowUpRight className="h-3 w-3" />}
+            {isNegative && <ArrowDownRight className="h-3 w-3" />}
+            {!isPositive && !isNegative && <Minus className="h-3 w-3" />}
+            <span>{Math.abs(change)}%</span>
+          </div>
+        )}
+      </div>
+      {showComparison && previousValue !== undefined && (
+        <p className="text-xs text-muted-foreground mt-1">
+          Previous: {previousValue}{suffix}
+        </p>
+      )}
+    </div>
+  );
+};
+
 export const TeamReportGenerator: React.FC = () => {
   const { ledTeamId } = useAuth();
   const { teamInfo, isTeamLeader } = useTeamLeaderData();
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('week');
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>({
     from: subDays(new Date(), 7),
     to: new Date(),
@@ -100,14 +160,109 @@ export const TeamReportGenerator: React.FC = () => {
     }
   };
 
-  const { data: reportData, isLoading, refetch } = useQuery({
-    queryKey: ['team-report', ledTeamId, timePeriod, customDateRange?.from?.toISOString(), customDateRange?.to?.toISOString()],
-    queryFn: async (): Promise<{ members: TeamMemberReport[]; totals: TeamMemberReport }> => {
+  const getPreviousDateRange = (period: TimePeriod) => {
+    const { start, end } = getDateRange(period);
+    const daysDiff = differenceInDays(end, start) + 1;
+    
+    switch (period) {
+      case 'today':
+        return { start: subDays(start, 1), end: subDays(end, 1) };
+      case 'week':
+        return { start: subWeeks(start, 1), end: subWeeks(end, 1) };
+      case 'month':
+        return { start: subMonths(start, 1), end: subMonths(end, 1) };
+      case 'custom':
+        return { start: subDays(start, daysDiff), end: subDays(end, daysDiff) };
+    }
+  };
+
+  const fetchPeriodData = async (start: Date, end: Date, memberIds: string[]) => {
+    const { data: feedback } = await supabase
+      .from('call_feedback')
+      .select('agent_id, feedback_status')
+      .in('agent_id', memberIds)
+      .gte('call_timestamp', start.toISOString())
+      .lte('call_timestamp', end.toISOString());
+
+    const { data: leads } = await supabase
+      .from('leads')
+      .select('agent_id')
+      .in('agent_id', memberIds)
+      .gte('created_at', start.toISOString())
+      .lte('created_at', end.toISOString());
+
+    const { data: talkTime } = await supabase
+      .from('agent_talk_time')
+      .select('agent_id, talk_time_minutes')
+      .in('agent_id', memberIds)
+      .gte('date', format(start, 'yyyy-MM-dd'))
+      .lte('date', format(end, 'yyyy-MM-dd'));
+
+    return { feedback, leads, talkTime };
+  };
+
+  const aggregateData = (
+    profiles: { id: string; full_name: string | null; username: string | null }[],
+    feedback: { agent_id: string; feedback_status: string }[] | null,
+    leads: { agent_id: string }[] | null,
+    talkTime: { agent_id: string; talk_time_minutes: number | null }[] | null
+  ): { members: TeamMemberReport[]; totals: TeamMemberReport } => {
+    const members: TeamMemberReport[] = profiles.map(profile => {
+      const agentFeedback = feedback?.filter(f => f.agent_id === profile.id) || [];
+      const agentLeads = leads?.filter(l => l.agent_id === profile.id) || [];
+      const agentTalkTime = talkTime?.filter(t => t.agent_id === profile.id) || [];
+      
+      const totalCalls = agentFeedback.length;
+      const interested = agentFeedback.filter(f => f.feedback_status === 'interested').length;
+      const notInterested = agentFeedback.filter(f => f.feedback_status === 'not_interested').length;
+      const notAnswered = agentFeedback.filter(f => f.feedback_status === 'not_answered').length;
+
+      return {
+        agentId: profile.id,
+        agentName: profile.full_name || profile.username || 'Unknown',
+        username: profile.username || '',
+        totalCalls,
+        interested,
+        notInterested,
+        notAnswered,
+        leadsGenerated: agentLeads.length,
+        conversionRate: totalCalls > 0 ? Math.round((interested / totalCalls) * 100) : 0,
+        talkTimeMinutes: agentTalkTime.reduce((sum, t) => sum + (t.talk_time_minutes || 0), 0),
+      };
+    });
+
+    const totals: TeamMemberReport = {
+      agentId: 'total',
+      agentName: 'Team Total',
+      username: '',
+      totalCalls: members.reduce((sum, m) => sum + m.totalCalls, 0),
+      interested: members.reduce((sum, m) => sum + m.interested, 0),
+      notInterested: members.reduce((sum, m) => sum + m.notInterested, 0),
+      notAnswered: members.reduce((sum, m) => sum + m.notAnswered, 0),
+      leadsGenerated: members.reduce((sum, m) => sum + m.leadsGenerated, 0),
+      conversionRate: 0,
+      talkTimeMinutes: members.reduce((sum, m) => sum + m.talkTimeMinutes, 0),
+    };
+    totals.conversionRate = totals.totalCalls > 0 
+      ? Math.round((totals.interested / totals.totalCalls) * 100) 
+      : 0;
+
+    members.sort((a, b) => b.totalCalls - a.totalCalls);
+    return { members, totals };
+  };
+
+  const { data: reportData, isLoading } = useQuery({
+    queryKey: ['team-report', ledTeamId, timePeriod, customDateRange?.from?.toISOString(), customDateRange?.to?.toISOString(), showComparison],
+    queryFn: async (): Promise<{ 
+      members: TeamMemberReport[]; 
+      totals: TeamMemberReport;
+      previousMembers?: TeamMemberReport[];
+      previousTotals?: TeamMemberReport;
+    }> => {
       if (!ledTeamId) return { members: [], totals: getEmptyTotals() };
 
       const { start, end } = getDateRange(timePeriod);
 
-      // Get team members
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('id, full_name, username')
@@ -118,74 +273,17 @@ export const TeamReportGenerator: React.FC = () => {
 
       const memberIds = profiles.map(p => p.id);
 
-      // Get feedback for the period
-      const { data: feedback } = await supabase
-        .from('call_feedback')
-        .select('agent_id, feedback_status')
-        .in('agent_id', memberIds)
-        .gte('call_timestamp', start.toISOString())
-        .lte('call_timestamp', end.toISOString());
+      // Fetch current period data
+      const currentData = await fetchPeriodData(start, end, memberIds);
+      const { members, totals } = aggregateData(profiles, currentData.feedback, currentData.leads, currentData.talkTime);
 
-      // Get leads for the period
-      const { data: leads } = await supabase
-        .from('leads')
-        .select('agent_id')
-        .in('agent_id', memberIds)
-        .gte('created_at', start.toISOString())
-        .lte('created_at', end.toISOString());
-
-      // Get talk time for the period
-      const { data: talkTime } = await supabase
-        .from('agent_talk_time')
-        .select('agent_id, talk_time_minutes')
-        .in('agent_id', memberIds)
-        .gte('date', format(start, 'yyyy-MM-dd'))
-        .lte('date', format(end, 'yyyy-MM-dd'));
-
-      // Aggregate by agent
-      const members: TeamMemberReport[] = profiles.map(profile => {
-        const agentFeedback = feedback?.filter(f => f.agent_id === profile.id) || [];
-        const agentLeads = leads?.filter(l => l.agent_id === profile.id) || [];
-        const agentTalkTime = talkTime?.filter(t => t.agent_id === profile.id) || [];
-        
-        const totalCalls = agentFeedback.length;
-        const interested = agentFeedback.filter(f => f.feedback_status === 'interested').length;
-        const notInterested = agentFeedback.filter(f => f.feedback_status === 'not_interested').length;
-        const notAnswered = agentFeedback.filter(f => f.feedback_status === 'not_answered').length;
-
-        return {
-          agentId: profile.id,
-          agentName: profile.full_name || profile.username || 'Unknown',
-          username: profile.username || '',
-          totalCalls,
-          interested,
-          notInterested,
-          notAnswered,
-          leadsGenerated: agentLeads.length,
-          conversionRate: totalCalls > 0 ? Math.round((interested / totalCalls) * 100) : 0,
-          talkTimeMinutes: agentTalkTime.reduce((sum, t) => sum + (t.talk_time_minutes || 0), 0),
-        };
-      });
-
-      // Calculate totals
-      const totals: TeamMemberReport = {
-        agentId: 'total',
-        agentName: 'Team Total',
-        username: '',
-        totalCalls: members.reduce((sum, m) => sum + m.totalCalls, 0),
-        interested: members.reduce((sum, m) => sum + m.interested, 0),
-        notInterested: members.reduce((sum, m) => sum + m.notInterested, 0),
-        notAnswered: members.reduce((sum, m) => sum + m.notAnswered, 0),
-        leadsGenerated: members.reduce((sum, m) => sum + m.leadsGenerated, 0),
-        conversionRate: 0,
-        talkTimeMinutes: members.reduce((sum, m) => sum + m.talkTimeMinutes, 0),
-      };
-      totals.conversionRate = totals.totalCalls > 0 
-        ? Math.round((totals.interested / totals.totalCalls) * 100) 
-        : 0;
-
-      // Sort by total calls descending
-      members.sort((a, b) => b.totalCalls - a.totalCalls);
+      // Fetch previous period data if comparison is enabled
+      if (showComparison) {
+        const { start: prevStart, end: prevEnd } = getPreviousDateRange(timePeriod);
+        const prevData = await fetchPeriodData(prevStart, prevEnd, memberIds);
+        const { members: previousMembers, totals: previousTotals } = aggregateData(profiles, prevData.feedback, prevData.leads, prevData.talkTime);
+        return { members, totals, previousMembers, previousTotals };
+      }
 
       return { members, totals };
     },
@@ -445,6 +543,17 @@ export const TeamReportGenerator: React.FC = () => {
                 </Popover>
               )}
               
+              <div className="flex items-center gap-2 border-l pl-2">
+                <Switch
+                  id="comparison-mode"
+                  checked={showComparison}
+                  onCheckedChange={setShowComparison}
+                />
+                <Label htmlFor="comparison-mode" className="text-sm cursor-pointer">
+                  Compare
+                </Label>
+              </div>
+              
               <Button onClick={downloadPDF} disabled={isLoading || isDownloading || !reportData}>
                 {isDownloading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -465,48 +574,61 @@ export const TeamReportGenerator: React.FC = () => {
           ) : (
             <div className="space-y-6">
               {/* Period indicator */}
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <CalendarIcon className="h-4 w-4" />
-                <span>{getPeriodLabel()}</span>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CalendarIcon className="h-4 w-4" />
+                  <span>{getPeriodLabel()}</span>
+                </div>
+                {showComparison && (
+                  <Badge variant="outline" className="text-xs">
+                    Comparing with previous {timePeriod === 'custom' ? 'period' : timePeriod}
+                  </Badge>
+                )}
               </div>
 
               {/* Summary Cards */}
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Phone className="h-4 w-4" />
-                    <span className="text-xs">Total Calls</span>
-                  </div>
-                  <p className="text-2xl font-bold">{reportData?.totals.totalCalls || 0}</p>
-                </div>
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="text-xs">Interested</span>
-                  </div>
-                  <p className="text-2xl font-bold text-green-500">{reportData?.totals.interested || 0}</p>
-                </div>
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Target className="h-4 w-4" />
-                    <span className="text-xs">Leads</span>
-                  </div>
-                  <p className="text-2xl font-bold text-amber-500">{reportData?.totals.leadsGenerated || 0}</p>
-                </div>
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <TrendingUp className="h-4 w-4" />
-                    <span className="text-xs">Conversion</span>
-                  </div>
-                  <p className="text-2xl font-bold text-purple-500">{reportData?.totals.conversionRate || 0}%</p>
-                </div>
-                <div className="p-4 bg-muted/50 rounded-lg">
-                  <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-xs">Talk Time</span>
-                  </div>
-                  <p className="text-2xl font-bold text-cyan-500">{reportData?.totals.talkTimeMinutes || 0}m</p>
-                </div>
+                <ComparisonCard
+                  icon={<Phone className="h-4 w-4" />}
+                  label="Total Calls"
+                  value={reportData?.totals.totalCalls || 0}
+                  previousValue={reportData?.previousTotals?.totalCalls}
+                  showComparison={showComparison}
+                />
+                <ComparisonCard
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  label="Interested"
+                  value={reportData?.totals.interested || 0}
+                  previousValue={reportData?.previousTotals?.interested}
+                  showComparison={showComparison}
+                  valueClassName="text-green-500"
+                />
+                <ComparisonCard
+                  icon={<Target className="h-4 w-4" />}
+                  label="Leads"
+                  value={reportData?.totals.leadsGenerated || 0}
+                  previousValue={reportData?.previousTotals?.leadsGenerated}
+                  showComparison={showComparison}
+                  valueClassName="text-amber-500"
+                />
+                <ComparisonCard
+                  icon={<TrendingUp className="h-4 w-4" />}
+                  label="Conversion"
+                  value={reportData?.totals.conversionRate || 0}
+                  previousValue={reportData?.previousTotals?.conversionRate}
+                  showComparison={showComparison}
+                  valueClassName="text-purple-500"
+                  suffix="%"
+                />
+                <ComparisonCard
+                  icon={<Clock className="h-4 w-4" />}
+                  label="Talk Time"
+                  value={reportData?.totals.talkTimeMinutes || 0}
+                  previousValue={reportData?.previousTotals?.talkTimeMinutes}
+                  showComparison={showComparison}
+                  valueClassName="text-cyan-500"
+                  suffix="m"
+                />
               </div>
 
               {/* Performance Chart */}
