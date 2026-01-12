@@ -607,6 +607,38 @@ export const LeadsPage = () => {
                 </SelectContent>
               </Select>
             </div>
+            
+            {/* Quick Filter Buttons */}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              <span className="text-xs text-muted-foreground">Quick filters:</span>
+              <Button
+                variant={statusFilter === 'declined' ? 'default' : 'outline'}
+                size="sm"
+                className={`h-7 text-xs ${statusFilter === 'declined' ? 'bg-rose-600 hover:bg-rose-700' : 'text-rose-600 border-rose-300 hover:bg-rose-50'}`}
+                onClick={() => setStatusFilter(statusFilter === 'declined' ? 'all' : 'declined')}
+              >
+                <XCircle className="w-3 h-3 mr-1" />
+                Declined ({stats.declined})
+              </Button>
+              <Button
+                variant={statusFilter === 'approved' ? 'default' : 'outline'}
+                size="sm"
+                className={`h-7 text-xs ${statusFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : 'text-green-600 border-green-300 hover:bg-green-50'}`}
+                onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
+              >
+                <CheckCircle className="w-3 h-3 mr-1" />
+                Approved ({stats.approved})
+              </Button>
+              <Button
+                variant={statusFilter === 'lost' ? 'default' : 'outline'}
+                size="sm"
+                className={`h-7 text-xs ${statusFilter === 'lost' ? 'bg-red-600 hover:bg-red-700' : 'text-red-600 border-red-300 hover:bg-red-50'}`}
+                onClick={() => setStatusFilter(statusFilter === 'lost' ? 'all' : 'lost')}
+              >
+                <XCircle className="w-3 h-3 mr-1" />
+                Lost ({stats.lost})
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -886,8 +918,23 @@ export const LeadsPage = () => {
                     </div>
                   </div>
 
-                  {/* Notes */}
-                  {lead.notes && (
+                  {/* Decline Reason - Prominent display for declined leads */}
+                  {lead.leadStatus === 'declined' && lead.notes && (
+                    <div className="mt-3 pt-3 border-t">
+                      <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="w-4 h-4 text-rose-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium text-rose-700 dark:text-rose-400">Decline Reason</p>
+                            <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">{lead.notes}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Regular Notes - Only show for non-declined leads */}
+                  {lead.leadStatus !== 'declined' && lead.notes && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-sm text-muted-foreground">
                         <span className="font-medium">Notes:</span> {lead.notes}
