@@ -46,7 +46,7 @@ export interface RejectionDetail {
   rejectionReason: string;
 }
 
-const REQUIRED_COLUMNS = ['company_name', 'contact_person_name', 'phone_number'];
+const REQUIRED_COLUMNS = ['company_name', 'phone_number'];
 
 const normalizeColumnName = (name: string): string => {
   return name
@@ -223,7 +223,6 @@ export const useCallSheetUpload = () => {
 
             // Validate required fields
             if (!companyName) errors.push('Company name is required');
-            if (!contactPersonName) errors.push('Contact person name is required');
             if (!phoneNumber) errors.push('Phone number is required');
             // trade_license_number is optional during upload, required when lead is qualified
 
@@ -341,7 +340,7 @@ export const useCallSheetUpload = () => {
       if (validContacts.length > 0) {
         const contactsToInsert = validContacts.map(c => ({
           company_name: c.companyName,
-          contact_person_name: c.contactPersonName,
+          contact_person_name: c.contactPersonName || '',
           phone_number: c.phoneNumber,
           trade_license_number: c.tradeLicenseNumber || 'PENDING',
           city: c.city || null,
