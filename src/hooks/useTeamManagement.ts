@@ -78,10 +78,11 @@ export const useTeamManagement = () => {
     enabled: !!user?.id && isAdmin,
   });
 
-  // Fetch all agents (for assignment)
+  // Fetch all agents (for assignment) - using profiles for admins who need email access
   const { data: agents, isLoading: agentsLoading } = useQuery({
     queryKey: ['agents-for-team-assignment'],
     queryFn: async (): Promise<TeamMember[]> => {
+      // Admins can access full profiles including email
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, username, email, team_id, is_active')

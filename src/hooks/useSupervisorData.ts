@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 export interface AgentPerformance {
   agentId: string;
   agentName: string;
-  email: string;
+  username: string;
   isActive: boolean;
   totalCalls: number;
   interested: number;
@@ -55,10 +55,10 @@ export const useSupervisorData = (teamId?: string) => {
       const todayStart = startOfDay(today).toISOString();
       const todayEnd = endOfDay(today).toISOString();
 
-      // Get agent profiles - filter by team if specified
+      // Get agent profiles - filter by team if specified (using profiles_public for non-sensitive data)
       let profilesQuery = supabase
-        .from('profiles')
-        .select('id, full_name, email, username, is_active, team_id');
+        .from('profiles_public')
+        .select('id, full_name, username, is_active, team_id');
       
       if (teamId) {
         profilesQuery = profilesQuery.eq('team_id', teamId);
@@ -103,7 +103,7 @@ export const useSupervisorData = (teamId?: string) => {
         return {
           agentId: profile.id,
           agentName: profile.full_name || profile.username || 'Unknown',
-          email: profile.email,
+          username: profile.username || '',
           isActive: profile.is_active ?? true,
           totalCalls,
           interested,

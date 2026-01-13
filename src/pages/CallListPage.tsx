@@ -215,9 +215,9 @@ export const CallListPage: React.FC = () => {
 
       // If "all_teams" is selected, fetch data for all teams
       if (teamId === 'all_teams') {
-        // Get all team members with their team info
+        // Get all team members with their team info (using profiles_public for non-sensitive data)
         const { data: allMembers, error: membersError } = await supabase
-          .from('profiles')
+          .from('profiles_public')
           .select('id, full_name, username, team_id')
           .not('team_id', 'is', null);
 
@@ -310,9 +310,9 @@ export const CallListPage: React.FC = () => {
 
         setTeamCallList(result);
       } else {
-        // Fetch for specific team
+        // Fetch for specific team (using profiles_public for non-sensitive data)
         const { data: teamMembers, error: membersError } = await supabase
-          .from('profiles')
+          .from('profiles_public')
           .select('id, full_name, username')
           .eq('team_id', teamId);
 

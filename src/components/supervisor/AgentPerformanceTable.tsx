@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Users, Phone, TrendingUp, Target, MoreVertical, Mail, Clock } from 'lucide-react';
+import { Users, Phone, TrendingUp, Target, MoreVertical, Clock } from 'lucide-react';
 import { AgentPerformance } from '@/hooks/useSupervisorData';
 import {
   DropdownMenu,
@@ -121,9 +121,8 @@ export const AgentPerformanceTable: React.FC<AgentPerformanceTableProps> = ({ da
                         </Avatar>
                         <div>
                           <div className="font-medium">{agent.agentName}</div>
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <Mail className="w-3 h-3" />
-                            {agent.email}
+                          <div className="text-xs text-muted-foreground">
+                            @{agent.username}
                           </div>
                         </div>
                       </div>
