@@ -68,9 +68,9 @@ export const useTeamLeaderData = () => {
       const todayStart = startOfDay(today).toISOString();
       const todayEnd = endOfDay(today).toISOString();
 
-      // Get team members - only from the team the user leads
+      // Get team members - only from the team the user leads (using profiles_public for non-sensitive data)
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+        .from('profiles_public')
         .select('id, full_name, username, is_active, login_streak_current')
         .eq('team_id', ledTeamId);
 
@@ -141,9 +141,9 @@ export const useTeamLeaderData = () => {
     queryFn: async (): Promise<DailyTrend[]> => {
       if (!ledTeamId) return [];
 
-      // Get team member IDs first
+      // Get team member IDs first (using profiles_public for non-sensitive data)
       const { data: profiles } = await supabase
-        .from('profiles')
+        .from('profiles_public')
         .select('id')
         .eq('team_id', ledTeamId);
 

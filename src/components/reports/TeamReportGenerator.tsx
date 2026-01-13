@@ -263,8 +263,9 @@ export const TeamReportGenerator: React.FC = () => {
 
       const { start, end } = getDateRange(timePeriod);
 
+      // Using profiles_public for non-sensitive data
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+        .from('profiles_public')
         .select('id, full_name, username')
         .eq('team_id', ledTeamId);
 

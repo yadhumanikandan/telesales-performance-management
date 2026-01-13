@@ -1577,6 +1577,10 @@ export type Database = {
       }
     }
     Functions: {
+      can_access_sensitive_profile: {
+        Args: { profile_id: string }
+        Returns: boolean
+      }
       check_dnc: { Args: { phone_to_check: string }; Returns: boolean }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }

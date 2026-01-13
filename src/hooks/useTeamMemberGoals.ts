@@ -36,9 +36,9 @@ export const useTeamMemberGoals = () => {
     queryFn: async () => {
       if (!ledTeamId) return [];
 
-      // Get team member IDs
+      // Get team member IDs (using profiles_public for non-sensitive data)
       const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
+        .from('profiles_public')
         .select('id, full_name, username')
         .eq('team_id', ledTeamId);
 
