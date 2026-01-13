@@ -1,15 +1,11 @@
 import { useState } from 'react';
-import { Lead, LeadStatus, parseLeadSource, ACCOUNT_BANKS, LOAN_BANKS } from '@/hooks/useLeads';
-import { useAuth } from '@/contexts/AuthContext';
+import { Lead, LeadStatus } from '@/hooks/useLeads';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
 import { ConvertToLeadDialog } from './ConvertToLeadDialog';
 import { toast } from 'sonner';
 import { 
@@ -30,26 +26,9 @@ import {
   FileText,
   AlertTriangle,
   ArrowUpCircle,
-  UserCircle,
-  Banknote,
-  CreditCard,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getScoreLabel } from '@/hooks/useLeadScoring';
-
-// Helper to get bank label from bank code
-const getBankLabel = (bankCode: string): string => {
-  const allBanks = [...ACCOUNT_BANKS, ...LOAN_BANKS];
-  const bank = allBanks.find(b => b.value === bankCode);
-  return bank?.label || bankCode;
-};
-
-// Helper to get product label (Group 1 = Account, Group 2 = Loan)
-const getProductLabel = (product: string): { label: string; group: string } => {
-  if (product === 'account') return { label: 'Account', group: 'Group 1' };
-  if (product === 'loan') return { label: 'Loan', group: 'Group 2' };
-  return { label: product, group: '' };
-};
 
 const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; bgColor: string; icon: React.ElementType }[] = [
   { status: 'new', label: 'New', color: 'text-blue-600', bgColor: 'bg-blue-50 dark:bg-blue-950/30', icon: Sparkles },
@@ -57,7 +36,6 @@ const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; bgCol
   { status: 'qualified', label: 'Submitted', color: 'text-purple-600', bgColor: 'bg-purple-50 dark:bg-purple-950/30', icon: CheckCircle },
   { status: 'converted', label: 'Assessing', color: 'text-orange-600', bgColor: 'bg-orange-50 dark:bg-orange-950/30', icon: Target },
   { status: 'approved', label: 'Approved', color: 'text-green-600', bgColor: 'bg-green-50 dark:bg-green-950/30', icon: CheckCircle },
-  { status: 'declined', label: 'Declined', color: 'text-rose-600', bgColor: 'bg-rose-50 dark:bg-rose-950/30', icon: XCircle },
   { status: 'lost', label: 'Lost', color: 'text-red-600', bgColor: 'bg-red-50 dark:bg-red-950/30', icon: XCircle },
 ];
 
@@ -65,7 +43,7 @@ export type LeadTypeFilter = 'all' | 'leads' | 'opportunities';
 
 interface LeadKanbanBoardProps {
   leads: Lead[];
-  onUpdateStatus: (leadId: string, status: LeadStatus, notes?: string) => void;
+  onUpdateStatus: (leadId: string, status: LeadStatus) => void;
   onEditLead: (lead: Lead) => void;
   onConvertToLead: (contactId: string, tradeLicenseNumber: string) => void;
   isUpdating: boolean;
@@ -84,18 +62,10 @@ export const LeadKanbanBoard = ({
   typeFilter,
   onTypeFilterChange,
 }: LeadKanbanBoardProps) => {
-  const { userRole } = useAuth();
   const [draggedLead, setDraggedLead] = useState<Lead | null>(null);
   const [dragOverColumn, setDragOverColumn] = useState<LeadStatus | null>(null);
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
   const [selectedOpportunity, setSelectedOpportunity] = useState<Lead | null>(null);
-  
-  // Decline dialog state
-  const [declineDialogOpen, setDeclineDialogOpen] = useState(false);
-  const [declineReason, setDeclineReason] = useState('');
-  const [leadToDecline, setLeadToDecline] = useState<Lead | null>(null);
-
-  const isAdminOrSuperAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'supervisor' || userRole === 'operations_head';
 
   // Filter leads based on type filter
   const filteredLeads = leads.filter(lead => {
@@ -164,37 +134,9 @@ export const LeadKanbanBoard = ({
         setDraggedLead(null);
         return;
       }
-      
-      // If declining, show the decline dialog
-      if (targetStatus === 'declined') {
-        setLeadToDecline(draggedLead);
-        setDeclineReason('');
-        setDeclineDialogOpen(true);
-        setDraggedLead(null);
-        return;
-      }
-      
       onUpdateStatus(draggedLead.id, targetStatus);
     }
     setDraggedLead(null);
-  };
-
-  const handleDeclineConfirm = () => {
-    if (!leadToDecline || !declineReason.trim()) {
-      toast.error('Please provide a reason for declining');
-      return;
-    }
-    
-    onUpdateStatus(leadToDecline.id, 'declined', declineReason.trim());
-    setDeclineDialogOpen(false);
-    setLeadToDecline(null);
-    setDeclineReason('');
-  };
-
-  const handleDeclineCancel = () => {
-    setDeclineDialogOpen(false);
-    setLeadToDecline(null);
-    setDeclineReason('');
   };
 
   return (
@@ -306,14 +248,6 @@ export const LeadKanbanBoard = ({
                               </TooltipProvider>
                             </div>
 
-                            {/* Agent Name - Show for admins */}
-                            {isAdminOrSuperAdmin && lead.agentName && (
-                              <p className="text-xs text-primary/80 flex items-center gap-1 mt-1 font-medium">
-                                <UserCircle className="w-3 h-3" />
-                                {lead.agentName}
-                              </p>
-                            )}
-
                             {/* Contact */}
                             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
                               <Users className="w-3 h-3" />
@@ -346,26 +280,6 @@ export const LeadKanbanBoard = ({
                               )}
                             </div>
 
-                            {/* Bank Name & Group */}
-                            {lead.leadSource && (() => {
-                              const parsed = parseLeadSource(lead.leadSource);
-                              if (!parsed) return null;
-                              const productInfo = getProductLabel(parsed.product);
-                              const bankLabel = getBankLabel(parsed.bank);
-                              return (
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                  <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400 border-blue-300">
-                                    <Banknote className="w-2.5 h-2.5 mr-1" />
-                                    {bankLabel}
-                                  </Badge>
-                                  <Badge variant="outline" className={`text-xs ${parsed.product === 'account' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 border-emerald-300' : 'bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-400 border-violet-300'}`}>
-                                    {parsed.product === 'account' ? <CreditCard className="w-2.5 h-2.5 mr-1" /> : <Banknote className="w-2.5 h-2.5 mr-1" />}
-                                    {productInfo.group}
-                                  </Badge>
-                                </div>
-                              );
-                            })()}
-
                             {/* Lead vs Opportunity Badge */}
                             <div className="mt-1 flex items-center gap-2">
                               {lead.isLead ? (
@@ -396,29 +310,8 @@ export const LeadKanbanBoard = ({
                               )}
                             </div>
 
-                            {/* Decline Reason - Show only for declined leads */}
-                            {lead.leadStatus === 'declined' && lead.notes && (
-                              <div className="mt-2 p-2 rounded-md bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800">
-                                <p className="text-xs font-medium text-rose-700 dark:text-rose-400 flex items-center gap-1 mb-1">
-                                  <XCircle className="w-3 h-3" />
-                                  Decline Reason
-                                </p>
-                                <p className="text-xs text-rose-600 dark:text-rose-300 line-clamp-2">
-                                  {lead.notes}
-                                </p>
-                              </div>
-                            )}
-
-                            {/* Created Date & Time */}
-                            <div className="flex items-center gap-1 mt-2 pt-2 border-t text-xs text-muted-foreground">
-                              <Calendar className="w-3 h-3" />
-                              <span>{format(new Date(lead.createdAt), 'MMM d, yyyy')}</span>
-                              <span className="text-muted-foreground/60">•</span>
-                              <span>{format(new Date(lead.createdAt), 'h:mm a')}</span>
-                            </div>
-
                             {/* Deal Value & Close Date */}
-                            <div className="flex items-center justify-between mt-1.5">
+                            <div className="flex items-center justify-between mt-2 pt-2 border-t">
                               {lead.dealValue ? (
                                 <span className="text-xs font-semibold text-green-600 flex items-center gap-0.5">
                                   <DollarSign className="w-3 h-3" />
@@ -469,56 +362,6 @@ export const LeadKanbanBoard = ({
         onConvert={onConvertToLead}
         isConverting={isConverting}
       />
-
-      {/* Decline Lead Dialog */}
-      <Dialog open={declineDialogOpen} onOpenChange={setDeclineDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-rose-600">
-              <XCircle className="w-5 h-5" />
-              Decline Lead
-            </DialogTitle>
-            <DialogDescription>
-              {leadToDecline && (
-                <span>
-                  You are about to decline <strong>{leadToDecline.companyName}</strong>. 
-                  Please provide a reason for declining this lead.
-                </span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="decline-reason" className="text-sm font-medium">
-                Reason for Declining <span className="text-destructive">*</span>
-              </Label>
-              <Textarea
-                id="decline-reason"
-                placeholder="Enter the reason for declining this lead..."
-                value={declineReason}
-                onChange={(e) => setDeclineReason(e.target.value)}
-                className="min-h-[100px]"
-                maxLength={500}
-              />
-              <p className="text-xs text-muted-foreground text-right">
-                {declineReason.length}/500 characters
-              </p>
-            </div>
-          </div>
-          <DialogFooter className="gap-2">
-            <Button variant="outline" onClick={handleDeclineCancel}>
-              Cancel
-            </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDeclineConfirm}
-              disabled={!declineReason.trim()}
-            >
-              Decline Lead
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

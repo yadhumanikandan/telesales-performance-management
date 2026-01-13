@@ -17,7 +17,6 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   qualified: 'Submitted',
   converted: 'Assessing',
   approved: 'Approved',
-  declined: 'Declined',
   lost: 'Lost',
 };
 
@@ -27,7 +26,6 @@ const STATUS_COLORS: Record<LeadStatus, string> = {
   qualified: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
   converted: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   approved: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-  declined: 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300',
   lost: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
 };
 

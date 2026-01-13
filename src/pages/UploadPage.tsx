@@ -1,5 +1,4 @@
 import React, { useState, useCallback, useRef } from 'react';
-import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +9,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
   Upload,
@@ -31,60 +29,18 @@ import {
   MoreVertical,
   RotateCcw,
   Eye,
-  Building2,
-  Phone,
-  Factory,
-  MapPin,
-  Map,
-  Landmark,
-  ArrowRight,
-  ChevronDown,
-  Copy,
-  Check,
-  Shuffle,
-  FileWarning,
-  RefreshCw,
-  XOctagon,
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatDistanceToNow } from 'date-fns';
-import { useCallSheetUpload, RejectionDetail, UploadHistory, ColumnAnalysis, UploadProgress } from '@/hooks/useCallSheetUpload';
+import { useCallSheetUpload, RejectionDetail, UploadHistory } from '@/hooks/useCallSheetUpload';
 import { TalkTimeUpload } from '@/components/upload/TalkTimeUpload';
 import { cn } from '@/lib/utils';
-
-const SAMPLE_DATA = [
-  {
-    company: 'ABC Trading LLC',
-    contact: '+971501234567',
-    industry: 'Trading',
-    address: 'Building 5, Office 201',
-    area: 'Business Bay',
-    emirate: 'Dubai',
-  },
-  {
-    company: 'XYZ Services',
-    contact: '+971502345678',
-    industry: 'Services',
-    address: 'Tower A, Floor 10',
-    area: 'Khalifa City',
-    emirate: 'Abu Dhabi',
-  },
-  {
-    company: 'Global Tech FZE',
-    contact: '+971503456789',
-    industry: 'Technology',
-    address: 'Warehouse 15',
-    area: 'JAFZA',
-    emirate: 'Dubai',
-  },
-];
 
 export const UploadPage: React.FC = () => {
   const { profile } = useAuth();
   const {
     parsedData,
     isProcessing,
-    uploadProgress,
     processFile,
     submitUpload,
     isSubmitting,
@@ -94,32 +50,7 @@ export const UploadPage: React.FC = () => {
     fetchRejectionDetails,
     resubmitUpload,
     isResubmitting,
-    cancelUpload,
-    isCancelling,
   } = useCallSheetUpload();
-
-  // Helper to format time remaining
-  const formatTimeRemaining = (seconds: number | undefined): string => {
-    if (!seconds || seconds <= 0) return '';
-    if (seconds < 60) return `${seconds}s remaining`;
-    const minutes = Math.floor(seconds / 60);
-    const remainingSecs = seconds % 60;
-    return `${minutes}m ${remainingSecs}s remaining`;
-  };
-
-  // Get stage display name
-  const getStageDisplayName = (stage: UploadProgress['stage']): string => {
-    switch (stage) {
-      case 'reading': return 'Reading file...';
-      case 'parsing': return 'Parsing data...';
-      case 'validating': return 'Validating entries...';
-      case 'uploading': return 'Creating upload record...';
-      case 'creating_contacts': return 'Adding contacts...';
-      case 'creating_call_list': return 'Creating call list...';
-      case 'complete': return 'Complete!';
-      default: return 'Processing...';
-    }
-  };
 
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -131,21 +62,6 @@ export const UploadPage: React.FC = () => {
   const [selectedUploadForRejections, setSelectedUploadForRejections] = useState<UploadHistory | null>(null);
   const [rejectionDetails, setRejectionDetails] = useState<RejectionDetail[]>([]);
   const [loadingRejections, setLoadingRejections] = useState(false);
-  const [isExampleOpen, setIsExampleOpen] = useState(false);
-  const [headerCopied, setHeaderCopied] = useState(false);
-
-  const CSV_HEADER = 'Name of the Company,Contact Number,Industry,Address,Area,Emirate';
-
-  const copyHeaderToClipboard = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(CSV_HEADER);
-      setHeaderCopied(true);
-      toast.success('Header row copied to clipboard');
-      setTimeout(() => setHeaderCopied(false), 2000);
-    } catch (error) {
-      toast.error('Failed to copy to clipboard');
-    }
-  }, []);
 
   const handleViewRejections = async (upload: UploadHistory) => {
     setSelectedUploadForRejections(upload);
@@ -168,13 +84,43 @@ export const UploadPage: React.FC = () => {
   };
 
   const downloadTemplate = useCallback(() => {
-    // Download the sample CSV file directly
-    const link = document.createElement('a');
-    link.href = '/sample-call-sheet.csv';
-    link.download = 'call_sheet_template.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const sampleData = [
+      {
+        company_name: 'ABC Trading LLC',
+        contact_person_name: 'John Smith',
+        phone_number: '+971501234567',
+        trade_license_number: 'TL-12345',
+        city: 'Dubai',
+        industry: 'Trading',
+        area: 'Business Bay',
+      },
+      {
+        company_name: 'XYZ Services',
+        contact_person_name: 'Jane Doe',
+        phone_number: '+971502345678',
+        trade_license_number: 'TL-67890',
+        city: 'Abu Dhabi',
+        industry: 'Services',
+        area: 'Khalifa City',
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Contacts');
+    
+    // Set column widths
+    worksheet['!cols'] = [
+      { wch: 20 }, // company_name
+      { wch: 20 }, // contact_person_name
+      { wch: 18 }, // phone_number
+      { wch: 18 }, // trade_license_number
+      { wch: 12 }, // city
+      { wch: 12 }, // industry
+      { wch: 15 }, // area
+    ];
+
+    XLSX.writeFile(workbook, 'call_sheet_template.xlsx');
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -299,128 +245,6 @@ export const UploadPage: React.FC = () => {
         </Button>
       </div>
 
-      {/* Required Format Guide */}
-      <Card className="border-primary/20 bg-primary/5">
-        <CardContent className="py-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Info className="w-4 h-4 text-primary" />
-            <span className="font-semibold text-sm">Required Column Format</span>
-            <Badge variant="secondary" className="ml-auto text-xs">All fields required</Badge>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border">
-              <Building2 className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">1. Name of the Company</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border">
-              <Phone className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">2. Contact Number</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border">
-              <Factory className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">3. Industry</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border">
-              <MapPin className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">4. Address</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border">
-              <Map className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">5. Area</span>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground hidden sm:block" />
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background border">
-              <Landmark className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">6. Emirate</span>
-            </div>
-          </div>
-
-          {/* Collapsible Example Preview */}
-          <Collapsible open={isExampleOpen} onOpenChange={setIsExampleOpen} className="mt-4">
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full justify-between hover:bg-background/50">
-                <span className="flex items-center gap-2 text-sm">
-                  <Eye className="w-4 h-4" />
-                  View Example Data
-                </span>
-                <ChevronDown className={cn("w-4 h-4 transition-transform", isExampleOpen && "rotate-180")} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-3">
-              {/* Copy Header Row Button */}
-              <div className="flex items-center justify-between p-3 mb-3 rounded-lg bg-muted/50 border">
-                <div className="flex-1 overflow-x-auto">
-                  <code className="text-xs font-mono text-muted-foreground">{CSV_HEADER}</code>
-                </div>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={copyHeaderToClipboard}
-                        className="ml-3 gap-1.5 shrink-0"
-                      >
-                        {headerCopied ? (
-                          <>
-                            <Check className="w-4 h-4 text-green-600" />
-                            <span className="text-green-600">Copied</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            <span>Copy Header</span>
-                          </>
-                        )}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Copy CSV header row to clipboard</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-
-              <div className="rounded-lg border bg-background overflow-hidden">
-                <ScrollArea className="w-full">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Name of the Company</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Contact Number</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Industry</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Address</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Area</TableHead>
-                        <TableHead className="font-semibold text-xs whitespace-nowrap">Emirate</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {SAMPLE_DATA.map((row, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="text-sm">{row.company}</TableCell>
-                          <TableCell className="text-sm font-mono">{row.contact}</TableCell>
-                          <TableCell className="text-sm">{row.industry}</TableCell>
-                          <TableCell className="text-sm">{row.address}</TableCell>
-                          <TableCell className="text-sm">{row.area}</TableCell>
-                          <TableCell className="text-sm">{row.emirate}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2 text-center">
-                This is how your data should look. Download the template for a ready-to-use file.
-              </p>
-            </CollapsibleContent>
-          </Collapsible>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Upload Section */}
         <div className="lg:col-span-2 space-y-6">
@@ -432,117 +256,11 @@ export const UploadPage: React.FC = () => {
                 Upload File
               </CardTitle>
               <CardDescription>
-                Upload an Excel (.xlsx, .xls) or CSV file matching the format above. Files with incorrect column order will be rejected.
+                Upload an Excel (.xlsx, .xls) or CSV file containing your contact list
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {/* Progress Indicator */}
-              {(uploadProgress || isSubmitting) && (
-                <div className="mb-6 p-6 rounded-xl border-2 border-primary/30 bg-primary/5">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="relative">
-                      <div className="w-14 h-14 rounded-full border-4 border-primary/20 flex items-center justify-center">
-                        {isCancelling ? (
-                          <XOctagon className="w-7 h-7 text-orange-500" />
-                        ) : uploadProgress?.stage === 'complete' ? (
-                          <CheckCircle2 className="w-7 h-7 text-green-600" />
-                        ) : (
-                          <Loader2 className="w-7 h-7 text-primary animate-spin" />
-                        )}
-                      </div>
-                      {!isCancelling && uploadProgress?.stage !== 'complete' && (
-                        <div 
-                          className="absolute inset-0 rounded-full border-4 border-primary border-t-transparent animate-spin"
-                          style={{ animationDuration: '1s' }}
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-semibold text-lg">
-                        {isCancelling ? 'Cancelling...' : uploadProgress ? getStageDisplayName(uploadProgress.stage) : 'Uploading...'}
-                      </p>
-                      {uploadProgress?.currentItem !== undefined && uploadProgress?.totalItems && !isCancelling && (
-                        <p className="text-sm text-muted-foreground">
-                          {uploadProgress.currentItem} of {uploadProgress.totalItems} items
-                          {uploadProgress.estimatedTimeRemaining && uploadProgress.estimatedTimeRemaining > 0 && (
-                            <span className="ml-2 text-primary">
-                              • {formatTimeRemaining(uploadProgress.estimatedTimeRemaining)}
-                            </span>
-                          )}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {uploadProgress?.stage !== 'complete' && !isCancelling && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={cancelUpload}
-                          className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <XOctagon className="w-4 h-4" />
-                          Cancel
-                        </Button>
-                      )}
-                      <div className="text-right">
-                        <p className="text-3xl font-bold text-primary">
-                          {uploadProgress?.percentage || 0}%
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Progress Bar */}
-                  <div className="space-y-2">
-                    <Progress 
-                      value={uploadProgress?.percentage || 0} 
-                      className="h-3"
-                    />
-                    
-                    {/* Stage Indicators */}
-                    <div className="flex justify-between text-xs text-muted-foreground pt-1">
-                      <span className={cn(
-                        "flex items-center gap-1",
-                        ['reading', 'parsing', 'validating', 'uploading', 'creating_contacts', 'creating_call_list', 'complete'].includes(uploadProgress?.stage || '') && "text-primary font-medium"
-                      )}>
-                        {['validating', 'uploading', 'creating_contacts', 'creating_call_list', 'complete'].includes(uploadProgress?.stage || '') ? (
-                          <Check className="w-3 h-3" />
-                        ) : null}
-                        Parse
-                      </span>
-                      <span className={cn(
-                        "flex items-center gap-1",
-                        ['uploading', 'creating_contacts', 'creating_call_list', 'complete'].includes(uploadProgress?.stage || '') && "text-primary font-medium"
-                      )}>
-                        {['creating_contacts', 'creating_call_list', 'complete'].includes(uploadProgress?.stage || '') ? (
-                          <Check className="w-3 h-3" />
-                        ) : null}
-                        Upload
-                      </span>
-                      <span className={cn(
-                        "flex items-center gap-1",
-                        ['creating_contacts', 'creating_call_list', 'complete'].includes(uploadProgress?.stage || '') && "text-primary font-medium"
-                      )}>
-                        {['creating_call_list', 'complete'].includes(uploadProgress?.stage || '') ? (
-                          <Check className="w-3 h-3" />
-                        ) : null}
-                        Contacts
-                      </span>
-                      <span className={cn(
-                        "flex items-center gap-1",
-                        uploadProgress?.stage === 'complete' && "text-green-600 font-medium"
-                      )}>
-                        {uploadProgress?.stage === 'complete' ? (
-                          <Check className="w-3 h-3" />
-                        ) : null}
-                        Complete
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!parsedData && !uploadProgress && !isSubmitting ? (
+              {!parsedData ? (
                 <div
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
@@ -591,9 +309,7 @@ export const UploadPage: React.FC = () => {
                     </div>
                   )}
                 </div>
-              ) : null}
-              
-              {parsedData && (
+              ) : (
                 <div className="space-y-6">
                   {/* File Info */}
                   <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50">
@@ -640,108 +356,8 @@ export const UploadPage: React.FC = () => {
                     <Progress value={validPercentage} className="h-2" />
                   </div>
 
-                  {/* Column Mismatch Alert with Suggestions */}
-                  {parsedData.columnAnalysis && !parsedData.columnAnalysis.isValid && (
-                    <Alert variant="destructive" className="border-orange-500/50 bg-orange-500/10">
-                      <FileWarning className="h-4 w-4 text-orange-600" />
-                      <AlertTitle className="text-orange-700">Column Format Issue Detected</AlertTitle>
-                      <AlertDescription className="mt-3 space-y-4">
-                        <p className="text-sm text-muted-foreground">
-                          Your file columns don't match the required format. Here's how to fix it:
-                        </p>
-                        
-                        {/* Column Comparison Table */}
-                        <div className="rounded-lg border bg-background overflow-hidden">
-                          <Table>
-                            <TableHeader>
-                              <TableRow className="bg-muted/50">
-                                <TableHead className="w-16 text-xs">Position</TableHead>
-                                <TableHead className="text-xs">Expected Column</TableHead>
-                                <TableHead className="text-xs">Your Column</TableHead>
-                                <TableHead className="text-xs">Fix</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {parsedData.columnAnalysis.mismatches.map((mismatch) => (
-                                <TableRow key={mismatch.position}>
-                                  <TableCell className="font-mono text-sm">{mismatch.position}</TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30">
-                                      {mismatch.expected}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>
-                                    <Badge variant="outline" className="bg-red-500/10 text-red-700 border-red-500/30">
-                                      {mismatch.found}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell>
-                                    {mismatch.suggestedFix === 'reorder' && mismatch.matchedAt && (
-                                      <div className="flex items-center gap-1.5 text-xs text-blue-600">
-                                        <Shuffle className="w-3 h-3" />
-                                        <span>Move from position {mismatch.matchedAt}</span>
-                                      </div>
-                                    )}
-                                    {mismatch.suggestedFix === 'rename' && (
-                                      <div className="flex items-center gap-1.5 text-xs text-orange-600">
-                                        <RefreshCw className="w-3 h-3" />
-                                        <span>Rename to "{mismatch.expected}"</span>
-                                      </div>
-                                    )}
-                                    {mismatch.suggestedFix === 'missing' && (
-                                      <div className="flex items-center gap-1.5 text-xs text-red-600">
-                                        <AlertCircle className="w-3 h-3" />
-                                        <span>Add this column</span>
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-
-                        {/* Suggested Order */}
-                        <div className="p-3 rounded-lg bg-muted/50 border">
-                          <p className="text-xs font-medium mb-2 flex items-center gap-1.5">
-                            <Info className="w-3 h-3" />
-                            Correct column order:
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {parsedData.columnAnalysis.suggestedOrder.map((col, i) => (
-                              <Badge key={i} variant="secondary" className="text-xs">
-                                {i + 1}. {col}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Can Auto-Fix Notice */}
-                        {parsedData.columnAnalysis.canAutoFix && (
-                          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                            <p className="text-xs text-blue-700 flex items-center gap-1.5">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <strong>Good news!</strong> All required columns are present. You just need to reorder them in your spreadsheet.
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="flex gap-2 pt-2">
-                          <Button variant="outline" size="sm" onClick={handleClear} className="gap-1.5">
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Clear & Try Again
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={downloadTemplate} className="gap-1.5">
-                            <Download className="w-3.5 h-3.5" />
-                            Download Template
-                          </Button>
-                        </div>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Regular Alerts for row-level issues */}
-                  {parsedData.columnAnalysis?.isValid && parsedData.invalidEntries > 0 && (
+                  {/* Alerts */}
+                  {parsedData.invalidEntries > 0 && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Some entries have issues</AlertTitle>
@@ -752,7 +368,7 @@ export const UploadPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  {parsedData.columnAnalysis?.isValid && parsedData.validEntries === 0 && parsedData.totalEntries > 0 && (
+                  {parsedData.validEntries === 0 && (
                     <Alert variant="destructive">
                       <XCircle className="h-4 w-4" />
                       <AlertTitle>No valid entries</AlertTitle>
@@ -762,8 +378,7 @@ export const UploadPage: React.FC = () => {
                     </Alert>
                   )}
 
-                  {/* Preview Table - only show when columns are valid */}
-                  {parsedData.columnAnalysis?.isValid !== false && parsedData.contacts.length > 0 && (
+                  {/* Preview Table */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="font-semibold flex items-center gap-2">
@@ -801,106 +416,51 @@ export const UploadPage: React.FC = () => {
                           <TableRow>
                             <TableHead className="w-12">#</TableHead>
                             <TableHead>Company</TableHead>
-                            <TableHead>Contact Number</TableHead>
-                            <TableHead>Industry</TableHead>
-                            <TableHead>Address</TableHead>
+                            <TableHead>Contact Person</TableHead>
+                            <TableHead>Phone</TableHead>
+                            <TableHead>License #</TableHead>
+                            <TableHead>City</TableHead>
                             <TableHead>Area</TableHead>
-                            <TableHead>Emirate</TableHead>
+                            <TableHead>Industry</TableHead>
                             <TableHead className="w-24">Status</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {filteredContacts.slice(0, 100).map((contact) => {
-                            // Helper to check if a specific field has an error
-                            const hasFieldError = (fieldName: string) => 
-                              contact.errors.some(err => err.toLowerCase().includes(fieldName.toLowerCase()));
-                            
-                            // Helper to get error message for a field
-                            const getFieldErrors = (fieldName: string) => 
-                              contact.errors.filter(err => err.toLowerCase().includes(fieldName.toLowerCase()));
-
-                            const renderCell = (value: string | undefined, fieldName: string, isMono?: boolean) => {
-                              const fieldErrors = getFieldErrors(fieldName);
-                              const hasError = fieldErrors.length > 0;
-                              
-                              if (hasError) {
-                                return (
+                          {filteredContacts.slice(0, 100).map((contact) => (
+                            <TableRow 
+                              key={contact.rowNumber}
+                              className={cn(!contact.isValid && "bg-destructive/5")}
+                            >
+                              <TableCell className="text-muted-foreground">{contact.rowNumber}</TableCell>
+                              <TableCell className="font-medium">{contact.companyName || '-'}</TableCell>
+                              <TableCell>{contact.contactPersonName || '-'}</TableCell>
+                              <TableCell className="font-mono text-sm">{contact.phoneNumber || '-'}</TableCell>
+                              <TableCell>{contact.tradeLicenseNumber || '-'}</TableCell>
+                              <TableCell>{contact.city || '-'}</TableCell>
+                              <TableCell>{contact.area || '-'}</TableCell>
+                              <TableCell>{contact.industry || '-'}</TableCell>
+                              <TableCell>
+                                {contact.isValid ? (
+                                  <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                ) : (
                                   <TooltipProvider>
                                     <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <div className={cn(
-                                          "flex items-center gap-1 px-1.5 py-0.5 -mx-1.5 rounded bg-destructive/10 border border-destructive/30 cursor-help",
-                                          isMono && "font-mono text-sm"
-                                        )}>
-                                          <AlertTriangle className="w-3 h-3 text-destructive shrink-0" />
-                                          <span className="text-destructive truncate">{value || '-'}</span>
-                                        </div>
+                                      <TooltipTrigger>
+                                        <XCircle className="w-4 h-4 text-destructive" />
                                       </TooltipTrigger>
-                                      <TooltipContent side="top" className="max-w-xs">
-                                        <div className="space-y-1">
-                                          <p className="font-semibold text-xs text-destructive">Validation Error</p>
-                                          <ul className="text-xs space-y-0.5">
-                                            {fieldErrors.map((err, i) => (
-                                              <li key={i}>• {err}</li>
-                                            ))}
-                                          </ul>
-                                        </div>
+                                      <TooltipContent>
+                                        <ul className="text-xs space-y-1">
+                                          {contact.errors.map((err, i) => (
+                                            <li key={i}>• {err}</li>
+                                          ))}
+                                        </ul>
                                       </TooltipContent>
                                     </Tooltip>
                                   </TooltipProvider>
-                                );
-                              }
-                              
-                              return <span className={cn(isMono && "font-mono text-sm")}>{value || '-'}</span>;
-                            };
-
-                            // Check for general errors not tied to specific fields
-                            const generalErrors = contact.errors.filter(err => 
-                              !['company', 'contact', 'phone', 'industry', 'address', 'area', 'emirate', 'number']
-                                .some(field => err.toLowerCase().includes(field))
-                            );
-
-                            return (
-                              <TableRow 
-                                key={contact.rowNumber}
-                                className={cn(!contact.isValid && "bg-destructive/5")}
-                              >
-                                <TableCell className="text-muted-foreground">{contact.rowNumber}</TableCell>
-                                <TableCell className="font-medium">{renderCell(contact.companyName, 'company')}</TableCell>
-                                <TableCell>{renderCell(contact.phoneNumber, 'contact number', true)}</TableCell>
-                                <TableCell>{renderCell(contact.industry, 'industry')}</TableCell>
-                                <TableCell>{renderCell(contact.city, 'address')}</TableCell>
-                                <TableCell>{renderCell(contact.area, 'area')}</TableCell>
-                                <TableCell>{renderCell(contact.city, 'emirate')}</TableCell>
-                                <TableCell>
-                                  {contact.isValid ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-600" />
-                                  ) : (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger>
-                                          <div className="flex items-center gap-1">
-                                            <XCircle className="w-4 h-4 text-destructive" />
-                                            <span className="text-xs text-destructive">{contact.errors.length}</span>
-                                          </div>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="left" className="max-w-xs">
-                                          <div className="space-y-1">
-                                            <p className="font-semibold text-xs">All Errors ({contact.errors.length})</p>
-                                            <ul className="text-xs space-y-0.5">
-                                              {contact.errors.map((err, i) => (
-                                                <li key={i}>• {err}</li>
-                                              ))}
-                                            </ul>
-                                          </div>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
                         </TableBody>
                       </Table>
                       {filteredContacts.length > 100 && (
@@ -910,7 +470,6 @@ export const UploadPage: React.FC = () => {
                       )}
                     </ScrollArea>
                   </div>
-                  )}
 
                   {/* Actions */}
                   <div className="flex gap-3 justify-end">

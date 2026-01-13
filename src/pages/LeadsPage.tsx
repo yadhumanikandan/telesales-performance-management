@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
-import { useLeads, Lead, LeadStatus, LeadSource, ProductType, BankName, PRODUCT_TYPES, ACCOUNT_BANKS, LOAN_BANKS, createLeadSource, parseLeadSource, LEAD_SOURCES, LeadFilters } from '@/hooks/useLeads';
+import { useState } from 'react';
+import { useLeads, Lead, LeadStatus, LeadSource, ProductType, BankName, PRODUCT_TYPES, ACCOUNT_BANKS, LOAN_BANKS, createLeadSource, parseLeadSource, LEAD_SOURCES } from '@/hooks/useLeads';
 import { LeadTypeFilter } from '@/components/leads/LeadKanbanBoard';
 import { useLeadScoring, getScoreLabel } from '@/hooks/useLeadScoring';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,7 +48,6 @@ import {
   Bell,
   Megaphone,
   History,
-  UserCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -61,38 +58,16 @@ const PIPELINE_STAGES: { status: LeadStatus; label: string; color: string; icon:
   { status: 'contacted', label: 'Contacted', color: 'bg-yellow-500', icon: Phone },
   { status: 'qualified', label: 'Qualified', color: 'bg-purple-500', icon: CheckCircle },
   { status: 'converted', label: 'Converted', color: 'bg-green-500', icon: Target },
-  { status: 'declined', label: 'Declined', color: 'bg-rose-500', icon: XCircle },
   { status: 'lost', label: 'Lost', color: 'bg-red-500', icon: XCircle },
 ];
 
-interface AgentOption {
-  id: string;
-  full_name: string;
-  team_id: string | null;
-}
-
-interface TeamOption {
-  id: string;
-  name: string;
-}
-
 export const LeadsPage = () => {
-  const { userRole } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>('kanban');
   const [statusFilter, setStatusFilter] = useState<LeadStatus | 'all'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [typeFilter, setTypeFilter] = useState<LeadTypeFilter>('all');
-  
-  // Admin filters
-  const [agentFilter, setAgentFilter] = useState<string>('all');
-  const [teamFilter, setTeamFilter] = useState<string>('all');
-  const [bankFilter, setBankFilter] = useState<string>('all');
-  const [groupFilter, setGroupFilter] = useState<string>('all');
-  const [agents, setAgents] = useState<AgentOption[]>([]);
-  const [teams, setTeams] = useState<TeamOption[]>([]);
-  
   const [editForm, setEditForm] = useState({
     dealValue: '',
     expectedCloseDate: '',
@@ -102,48 +77,7 @@ export const LeadsPage = () => {
     bankName: 'RAK' as BankName,
   });
 
-  const isAdminOrSuperAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'supervisor' || userRole === 'operations_head';
-
-  // Fetch agents and teams for admin filters
-  useEffect(() => {
-    if (isAdminOrSuperAdmin) {
-      // Fetch agents
-      supabase
-        .from('profiles')
-        .select('id, full_name, team_id')
-        .order('full_name')
-        .then(({ data }) => {
-          if (data) setAgents(data);
-        });
-
-      // Fetch teams
-      supabase
-        .from('teams')
-        .select('id, name')
-        .order('name')
-        .then(({ data }) => {
-          if (data) setTeams(data);
-        });
-    }
-  }, [isAdminOrSuperAdmin]);
-
-  // All banks for filter dropdown
-  const allBanks = [...ACCOUNT_BANKS];
-  // Add any banks from LOAN_BANKS that aren't in ACCOUNT_BANKS
-  LOAN_BANKS.forEach(bank => {
-    if (!allBanks.find(b => b.value === bank.value)) {
-      allBanks.push(bank);
-    }
-  });
-
-  const filters: LeadFilters = {
-    agentId: agentFilter,
-    teamId: teamFilter,
-    bankName: bankFilter as BankName | 'all',
-    productType: groupFilter as ProductType | 'all',
-  };
-
-  const { leads, stats, isLoading, refetch, updateLeadStatus, updateLeadDetails, convertToLead, isUpdating, isConverting } = useLeads(statusFilter, filters);
+  const { leads, stats, isLoading, refetch, updateLeadStatus, updateLeadDetails, convertToLead, isUpdating, isConverting } = useLeads(statusFilter);
   const { recalculateScores, isRecalculating, getScoreBreakdown } = useLeadScoring();
 
   const filteredLeads = leads.filter(lead => {
@@ -212,7 +146,6 @@ export const LeadsPage = () => {
       qualified: 'default',
       converted: 'secondary',
       approved: 'default',
-      declined: 'destructive',
       lost: 'destructive',
     };
     return variants[status];
@@ -220,42 +153,11 @@ export const LeadsPage = () => {
 
   const formatCurrency = (value: number | null) => {
     if (value === null || value === undefined) return '-';
-    return `د.إ ${new Intl.NumberFormat('en-AE', {
+    return new Intl.NumberFormat('en-AE', {
+      style: 'currency',
+      currency: 'AED',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value)}`;
-  };
-
-  // Calculate summary stats by bank and group
-  const getSummaryStats = () => {
-    const byBank: Record<string, { count: number; value: number }> = {};
-    const byGroup: Record<string, { count: number; value: number }> = { account: { count: 0, value: 0 }, loan: { count: 0, value: 0 } };
-    
-    leads.forEach(lead => {
-      const parsed = parseLeadSource(lead.leadSource);
-      if (parsed) {
-        // By bank
-        if (!byBank[parsed.bank]) {
-          byBank[parsed.bank] = { count: 0, value: 0 };
-        }
-        byBank[parsed.bank].count++;
-        byBank[parsed.bank].value += lead.dealValue || 0;
-        
-        // By group
-        byGroup[parsed.product].count++;
-        byGroup[parsed.product].value += lead.dealValue || 0;
-      }
-    });
-    
-    return { byBank, byGroup };
-  };
-
-  const summaryStats = getSummaryStats();
-
-  // Get bank label
-  const getBankLabel = (bankValue: string) => {
-    const bank = allBanks.find(b => b.value === bankValue);
-    return bank?.label || bankValue;
+    }).format(value);
   };
 
   if (isLoading) {
@@ -284,14 +186,9 @@ export const LeadsPage = () => {
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Target className="w-8 h-8 text-primary" />
             Sales Pipeline
-            {isAdminOrSuperAdmin && (agentFilter !== 'all' || teamFilter !== 'all') && (
-              <Badge variant="secondary" className="ml-2 text-xs">
-                Filtered
-              </Badge>
-            )}
           </h1>
           <p className="text-muted-foreground mt-1 flex items-center gap-3">
-            {isAdminOrSuperAdmin ? 'View all sales pipeline data' : 'Track opportunities and leads through the sales funnel'}
+            Track opportunities and leads through the sales funnel
             <span className="flex items-center gap-2 text-sm">
               <Badge variant="outline" className="text-amber-600 border-amber-400">
                 {stats.opportunities} Opportunities
@@ -302,96 +199,7 @@ export const LeadsPage = () => {
             </span>
           </p>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* Admin Filters */}
-          {isAdminOrSuperAdmin && (
-            <div className="flex items-center gap-2">
-              <Select value={teamFilter} onValueChange={(v) => {
-                setTeamFilter(v);
-                setAgentFilter('all'); // Reset agent filter when team changes
-              }}>
-                <SelectTrigger className="w-40 h-9">
-                  <Users className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="All Teams" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Teams</SelectItem>
-                  {teams.map(team => (
-                    <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={agentFilter} onValueChange={setAgentFilter}>
-                <SelectTrigger className="w-44 h-9">
-                  <UserCircle className="w-4 h-4 mr-2" />
-                  <SelectValue placeholder="All Agents" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Agents</SelectItem>
-                  {agents
-                    .filter(agent => teamFilter === 'all' || agent.team_id === teamFilter)
-                    .map(agent => (
-                      <SelectItem key={agent.id} value={agent.id}>{agent.full_name}</SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-
-              {(agentFilter !== 'all' || teamFilter !== 'all') && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-9"
-                  onClick={() => {
-                    setAgentFilter('all');
-                    setTeamFilter('all');
-                  }}
-                >
-                  Clear
-                </Button>
-              )}
-            </div>
-          )}
-
-          {/* Bank & Group Filters - Available for all users */}
-          <div className="flex items-center gap-2">
-            <Select value={bankFilter} onValueChange={setBankFilter}>
-              <SelectTrigger className="w-36 h-9">
-                <SelectValue placeholder="All Banks" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Banks</SelectItem>
-                {allBanks.map(bank => (
-                  <SelectItem key={bank.value} value={bank.value}>{bank.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={groupFilter} onValueChange={setGroupFilter}>
-              <SelectTrigger className="w-36 h-9">
-                <SelectValue placeholder="All Groups" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Groups</SelectItem>
-                <SelectItem value="account">Group 1 (Account)</SelectItem>
-                <SelectItem value="loan">Group 2 (Loan)</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {(bankFilter !== 'all' || groupFilter !== 'all') && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-9"
-                onClick={() => {
-                  setBankFilter('all');
-                  setGroupFilter('all');
-                }}
-              >
-                Clear
-              </Button>
-            )}
-          </div>
+        <div className="flex items-center gap-4">
           {/* View Toggle */}
           <div className="flex items-center border rounded-lg p-1 bg-muted/50">
             <Button
@@ -481,74 +289,6 @@ export const LeadsPage = () => {
         </div>
       </div>
 
-      {/* Pipeline Summary by Bank & Group */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* By Group */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <BarChart3 className="w-4 h-4" />
-              Summary by Product Group
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-emerald-600">Group 1 (Account)</span>
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">
-                    {summaryStats.byGroup.account.count} leads
-                  </Badge>
-                </div>
-                <p className="text-lg font-bold">{formatCurrency(summaryStats.byGroup.account.value)}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-violet-500/10 border border-violet-500/20">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-medium text-violet-600">Group 2 (Loan)</span>
-                  <Badge variant="outline" className="bg-violet-500/10 text-violet-600 border-violet-500/30">
-                    {summaryStats.byGroup.loan.count} leads
-                  </Badge>
-                </div>
-                <p className="text-lg font-bold">{formatCurrency(summaryStats.byGroup.loan.value)}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* By Bank */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Building2 className="w-4 h-4" />
-              Summary by Bank
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(summaryStats.byBank)
-                .sort((a, b) => b[1].count - a[1].count)
-                .map(([bank, data]) => (
-                  <div 
-                    key={bank} 
-                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 border"
-                  >
-                    <span className="text-sm font-medium">{getBankLabel(bank)}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {data.count}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">
-                      {formatCurrency(data.value)}
-                    </span>
-                  </div>
-                ))}
-              {Object.keys(summaryStats.byBank).length === 0 && (
-                <p className="text-sm text-muted-foreground">No leads with bank data</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Pipeline Stats - Only show in list view */}
       {viewMode === 'list' && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -606,38 +346,6 @@ export const LeadsPage = () => {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-            
-            {/* Quick Filter Buttons */}
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <span className="text-xs text-muted-foreground">Quick filters:</span>
-              <Button
-                variant={statusFilter === 'declined' ? 'default' : 'outline'}
-                size="sm"
-                className={`h-7 text-xs ${statusFilter === 'declined' ? 'bg-rose-600 hover:bg-rose-700' : 'text-rose-600 border-rose-300 hover:bg-rose-50'}`}
-                onClick={() => setStatusFilter(statusFilter === 'declined' ? 'all' : 'declined')}
-              >
-                <XCircle className="w-3 h-3 mr-1" />
-                Declined ({stats.declined})
-              </Button>
-              <Button
-                variant={statusFilter === 'approved' ? 'default' : 'outline'}
-                size="sm"
-                className={`h-7 text-xs ${statusFilter === 'approved' ? 'bg-green-600 hover:bg-green-700' : 'text-green-600 border-green-300 hover:bg-green-50'}`}
-                onClick={() => setStatusFilter(statusFilter === 'approved' ? 'all' : 'approved')}
-              >
-                <CheckCircle className="w-3 h-3 mr-1" />
-                Approved ({stats.approved})
-              </Button>
-              <Button
-                variant={statusFilter === 'lost' ? 'default' : 'outline'}
-                size="sm"
-                className={`h-7 text-xs ${statusFilter === 'lost' ? 'bg-red-600 hover:bg-red-700' : 'text-red-600 border-red-300 hover:bg-red-50'}`}
-                onClick={() => setStatusFilter(statusFilter === 'lost' ? 'all' : 'lost')}
-              >
-                <XCircle className="w-3 h-3 mr-1" />
-                Lost ({stats.lost})
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -918,23 +626,8 @@ export const LeadsPage = () => {
                     </div>
                   </div>
 
-                  {/* Decline Reason - Prominent display for declined leads */}
-                  {lead.leadStatus === 'declined' && lead.notes && (
-                    <div className="mt-3 pt-3 border-t">
-                      <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800">
-                        <div className="flex items-start gap-2">
-                          <XCircle className="w-4 h-4 text-rose-600 mt-0.5 flex-shrink-0" />
-                          <div>
-                            <p className="text-sm font-medium text-rose-700 dark:text-rose-400">Decline Reason</p>
-                            <p className="text-sm text-rose-600 dark:text-rose-300 mt-1">{lead.notes}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Regular Notes - Only show for non-declined leads */}
-                  {lead.leadStatus !== 'declined' && lead.notes && (
+                  {/* Notes */}
+                  {lead.notes && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-sm text-muted-foreground">
                         <span className="font-medium">Notes:</span> {lead.notes}
@@ -1034,18 +727,6 @@ export const LeadsPage = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                {/* Decline Reason - Show only for declined leads */}
-                {selectedLead?.leadStatus === 'declined' && (
-                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800">
-                    <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 mb-2">
-                      <XCircle className="w-4 h-4" />
-                      <span className="font-medium text-sm">Decline Reason</span>
-                    </div>
-                    <p className="text-sm text-rose-600 dark:text-rose-300">
-                      {selectedLead.notes || 'No reason provided'}
-                    </p>
-                  </div>
-                )}
                 <div className="space-y-2">
                   <Label htmlFor="notes">Notes</Label>
                   <Textarea

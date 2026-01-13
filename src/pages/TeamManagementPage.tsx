@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTeamManagement, Team, TeamMember } from '@/hooks/useTeamManagement';
-import { useFeaturePermissions } from '@/hooks/useFeaturePermissions';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,9 +23,6 @@ export const TeamManagementPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'teams';
   const [activeTab, setActiveTab] = useState(initialTab);
-  
-  // Feature permissions
-  const { canCreateTeam, canDeleteTeam, canAssignTeamLeader, canAssignTeamMembers } = useFeaturePermissions();
 
   useEffect(() => {
     const tab = searchParams.get('tab');

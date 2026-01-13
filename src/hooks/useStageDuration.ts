@@ -17,7 +17,6 @@ const STATUS_LABELS: Record<LeadStatus, string> = {
   qualified: 'Submitted',
   converted: 'Assessing',
   approved: 'Approved',
-  declined: 'Declined',
   lost: 'Lost',
 };
 
@@ -82,7 +81,6 @@ export const useStageDuration = () => {
         qualified: [],
         converted: [],
         approved: [],
-        declined: [],
         lost: [],
       };
 

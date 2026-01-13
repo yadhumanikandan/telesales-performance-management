@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
-export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'converted' | 'approved' | 'lost' | 'declined';
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'converted' | 'approved' | 'lost';
 export type ProductType = 'account' | 'loan';
 export type BankName = 'RAK' | 'NBF' | 'UBL' | 'RUYA' | 'MASHREQ' | 'WIO';
 export type LeadSource = `${ProductType}_${BankName}`;
@@ -66,10 +66,6 @@ export const createLeadSource = (product: ProductType, bank: BankName): LeadSour
 export interface Lead {
   id: string;
   contactId: string;
-  agentId: string;
-  agentName?: string;
-  teamId?: string | null;
-  teamName?: string | null;
   companyName: string;
   contactPersonName: string;
   phoneNumber: string;
@@ -98,26 +94,16 @@ export interface LeadStats {
   qualified: number;
   converted: number;
   approved: number;
-  declined: number;
   lost: number;
   totalDealValue: number;
 }
 
-export interface LeadFilters {
-  agentId?: string | 'all';
-  teamId?: string | 'all';
-  bankName?: BankName | 'all';
-  productType?: ProductType | 'all';
-}
-
-export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilters) => {
-  const { user, userRole } = useAuth();
+export const useLeads = (statusFilter?: LeadStatus | 'all') => {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const isAdminOrSuperAdmin = userRole === 'admin' || userRole === 'super_admin' || userRole === 'supervisor' || userRole === 'operations_head';
-
   const { data: leads, isLoading, refetch } = useQuery({
-    queryKey: ['leads', user?.id, statusFilter, filters?.agentId, filters?.teamId, filters?.bankName, filters?.productType],
+    queryKey: ['leads', user?.id, statusFilter],
     queryFn: async (): Promise<Lead[]> => {
       let query = supabase
         .from('leads')
@@ -130,25 +116,10 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
             trade_license_number,
             city,
             industry
-          ),
-          profiles:agent_id (
-            full_name,
-            team_id
           )
         `)
+        .eq('agent_id', user?.id)
         .order('created_at', { ascending: false });
-
-      // Apply filters based on role
-      if (isAdminOrSuperAdmin) {
-        // Admins can see all, but can filter by agent or team
-        if (filters?.agentId && filters.agentId !== 'all') {
-          query = query.eq('agent_id', filters.agentId);
-        }
-        // Team filter will be applied after fetching since it requires join
-      } else {
-        // Regular agents can only see their own leads
-        query = query.eq('agent_id', user?.id);
-      }
 
       if (statusFilter && statusFilter !== 'all') {
         query = query.eq('lead_status', statusFilter);
@@ -158,15 +129,11 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
 
       if (error) throw error;
 
-      let mappedLeads = (data || []).map(item => {
+      return (data || []).map(item => {
         const tradeLicenseNumber = item.master_contacts?.trade_license_number || null;
         return {
           id: item.id,
           contactId: item.contact_id,
-          agentId: item.agent_id,
-          agentName: (item.profiles as any)?.full_name || 'Unknown',
-          teamId: (item.profiles as any)?.team_id || null,
-          teamName: null, // Will be populated if needed
           companyName: item.master_contacts?.company_name || 'Unknown',
           contactPersonName: item.master_contacts?.contact_person_name || 'Unknown',
           phoneNumber: item.master_contacts?.phone_number || '',
@@ -182,32 +149,9 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
           notes: item.notes,
           createdAt: item.created_at || '',
           updatedAt: item.updated_at || '',
-          isLead: !!tradeLicenseNumber,
+          isLead: !!tradeLicenseNumber, // Has TL = Lead, No TL = Opportunity
         };
       });
-
-      // Apply team filter if specified
-      if (isAdminOrSuperAdmin && filters?.teamId && filters.teamId !== 'all') {
-        mappedLeads = mappedLeads.filter(lead => lead.teamId === filters.teamId);
-      }
-
-      // Apply bank filter if specified
-      if (filters?.bankName && filters.bankName !== 'all') {
-        mappedLeads = mappedLeads.filter(lead => {
-          const parsed = parseLeadSource(lead.leadSource);
-          return parsed?.bank === filters.bankName;
-        });
-      }
-
-      // Apply product type (group) filter if specified
-      if (filters?.productType && filters.productType !== 'all') {
-        mappedLeads = mappedLeads.filter(lead => {
-          const parsed = parseLeadSource(lead.leadSource);
-          return parsed?.product === filters.productType;
-        });
-      }
-
-      return mappedLeads;
     },
     enabled: !!user?.id,
   });
@@ -221,7 +165,6 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
     qualified: leads?.filter(l => l.leadStatus === 'qualified').length || 0,
     converted: leads?.filter(l => l.leadStatus === 'converted').length || 0,
     approved: leads?.filter(l => l.leadStatus === 'approved').length || 0,
-    declined: leads?.filter(l => l.leadStatus === 'declined').length || 0,
     lost: leads?.filter(l => l.leadStatus === 'lost').length || 0,
     totalDealValue: leads?.reduce((sum, l) => sum + (l.dealValue || 0), 0) || 0,
   };
@@ -259,7 +202,6 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
           qualified: '✅ Lead Submitted!',
           converted: '📋 Lead Assessing!',
           approved: '🎉 Lead Approved!',
-          declined: '❌ Lead Declined',
           lost: 'Marked as Lost',
         };
         toast.success(statusLabels[variables.updates.lead_status]);
@@ -273,12 +215,8 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
     },
   });
 
-  const updateLeadStatus = (leadId: string, status: LeadStatus, notes?: string) => {
-    const updates: { lead_status: LeadStatus; notes?: string } = { lead_status: status };
-    if (notes) {
-      updates.notes = notes;
-    }
-    updateLead.mutate({ leadId, updates });
+  const updateLeadStatus = (leadId: string, status: LeadStatus) => {
+    updateLead.mutate({ leadId, updates: { lead_status: status } });
   };
 
   const updateLeadDetails = (

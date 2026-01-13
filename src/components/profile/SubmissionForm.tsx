@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
@@ -13,23 +12,20 @@ export const SubmissionForm: React.FC = () => {
   const { createSubmission } = useAgentSubmissions();
   const [selectedGroup, setSelectedGroup] = useState<SubmissionGroup>('group1');
   const [selectedBank, setSelectedBank] = useState<string>('');
-  const [companyName, setCompanyName] = useState('');
   const [notes, setNotes] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedBank || !companyName.trim()) return;
+    if (!selectedBank) return;
 
     createSubmission.mutate({
       submission_group: selectedGroup,
       bank_name: selectedBank,
-      company_name: companyName.trim(),
       notes: notes || undefined,
     });
 
     // Reset form
     setSelectedBank('');
-    setCompanyName('');
     setNotes('');
   };
 
@@ -67,7 +63,7 @@ export const SubmissionForm: React.FC = () => {
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="group2" id="group2" />
                 <Label htmlFor="group2" className="font-normal cursor-pointer">
-                  Group 2 (RAK, Mashreq, Wio, Ruya)
+                  Group 2 (RAK, Mashreq, Wioriya)
                 </Label>
               </div>
             </RadioGroup>
@@ -90,16 +86,6 @@ export const SubmissionForm: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <Label>Company Name (as per Trade Licence) <span className="text-destructive">*</span></Label>
-            <Input
-              value={companyName}
-              onChange={(e) => setCompanyName(e.target.value)}
-              placeholder="Enter company name exactly as on trade licence"
-              required
-            />
-          </div>
-
-          <div className="space-y-2">
             <Label>Notes (Optional)</Label>
             <Textarea
               value={notes}
@@ -111,7 +97,7 @@ export const SubmissionForm: React.FC = () => {
 
           <Button
             type="submit"
-            disabled={!selectedBank || !companyName.trim() || createSubmission.isPending}
+            disabled={!selectedBank || createSubmission.isPending}
             className="w-full"
           >
             <Send className="w-4 h-4 mr-2" />

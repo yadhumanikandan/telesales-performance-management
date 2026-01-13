@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,29 +19,12 @@ export interface ParsedContact {
   errors: string[];
 }
 
-export interface ColumnMismatch {
-  position: number;
-  expected: string;
-  found: string;
-  suggestedFix: 'rename' | 'reorder' | 'missing';
-  matchedAt?: number; // If found at wrong position
-}
-
-export interface ColumnAnalysis {
-  isValid: boolean;
-  mismatches: ColumnMismatch[];
-  detectedColumns: string[];
-  suggestedOrder: string[];
-  canAutoFix: boolean;
-}
-
 export interface UploadValidationResult {
   totalEntries: number;
   validEntries: number;
   invalidEntries: number;
   duplicateEntries: number;
   contacts: ParsedContact[];
-  columnAnalysis?: ColumnAnalysis;
 }
 
 export interface UploadHistory {
@@ -63,34 +46,7 @@ export interface RejectionDetail {
   rejectionReason: string;
 }
 
-export interface UploadProgress {
-  stage: 'reading' | 'parsing' | 'validating' | 'uploading' | 'creating_contacts' | 'creating_call_list' | 'complete';
-  percentage: number;
-  currentItem?: number;
-  totalItems?: number;
-  estimatedTimeRemaining?: number; // in seconds
-  startTime?: number;
-}
-
-// Required columns in EXACT order - all are compulsory
-const REQUIRED_COLUMNS_IN_ORDER = [
-  'name_of_the_company',
-  'contact_number',
-  'industry',
-  'address',
-  'area',
-  'emirate',
-];
-
-// Human-readable column names for error messages
-const COLUMN_DISPLAY_NAMES = [
-  'Name of the Company',
-  'Contact Number',
-  'Industry',
-  'Address',
-  'Area',
-  'Emirate',
-];
+const REQUIRED_COLUMNS = ['company_name', 'contact_person_name', 'phone_number'];
 
 const normalizeColumnName = (name: string): string => {
   return name
@@ -98,122 +54,6 @@ const normalizeColumnName = (name: string): string => {
     .trim()
     .replace(/[\s-]+/g, '_')
     .replace(/[^a-z0-9_]/g, '');
-};
-
-// Analyze column structure and provide fix suggestions
-const analyzeColumns = (originalColumns: string[]): ColumnAnalysis => {
-  const normalizedColumns = originalColumns.map(col => normalizeColumnName(col));
-  const mismatches: ColumnMismatch[] = [];
-  const suggestedOrder: string[] = [];
-  
-  // Check each expected column position
-  REQUIRED_COLUMNS_IN_ORDER.forEach((expectedCol, expectedIndex) => {
-    const actualCol = normalizedColumns[expectedIndex];
-    const expectedDisplayName = COLUMN_DISPLAY_NAMES[expectedIndex];
-    const actualDisplayName = originalColumns[expectedIndex] || '(empty)';
-    
-    if (actualCol === expectedCol) {
-      // Column is in correct position
-      suggestedOrder.push(originalColumns[expectedIndex]);
-      return;
-    }
-    
-    // Check if expected column exists elsewhere in the file
-    const foundAtIndex = normalizedColumns.findIndex(col => col === expectedCol);
-    
-    if (foundAtIndex !== -1) {
-      // Column exists but in wrong position - suggest reorder
-      mismatches.push({
-        position: expectedIndex + 1,
-        expected: expectedDisplayName,
-        found: actualDisplayName,
-        suggestedFix: 'reorder',
-        matchedAt: foundAtIndex + 1,
-      });
-      suggestedOrder.push(originalColumns[foundAtIndex]);
-    } else {
-      // Check if current column might be a renamed version (fuzzy match)
-      const isSimilar = actualCol && (
-        actualCol.includes(expectedCol.split('_')[0]) ||
-        expectedCol.includes(actualCol.split('_')[0]) ||
-        levenshteinDistance(actualCol, expectedCol) <= 3
-      );
-      
-      if (isSimilar) {
-        // Column might be misspelled - suggest rename
-        mismatches.push({
-          position: expectedIndex + 1,
-          expected: expectedDisplayName,
-          found: actualDisplayName,
-          suggestedFix: 'rename',
-        });
-        suggestedOrder.push(expectedDisplayName);
-      } else if (!actualCol || actualCol === '') {
-        // Column is missing
-        mismatches.push({
-          position: expectedIndex + 1,
-          expected: expectedDisplayName,
-          found: '(missing)',
-          suggestedFix: 'missing',
-        });
-        suggestedOrder.push(expectedDisplayName);
-      } else {
-        // Column is completely different
-        mismatches.push({
-          position: expectedIndex + 1,
-          expected: expectedDisplayName,
-          found: actualDisplayName,
-          suggestedFix: 'rename',
-        });
-        suggestedOrder.push(expectedDisplayName);
-      }
-    }
-  });
-  
-  // Check if all required columns exist somewhere (can be auto-fixed by reordering)
-  const allColumnsExist = REQUIRED_COLUMNS_IN_ORDER.every(reqCol => 
-    normalizedColumns.includes(reqCol)
-  );
-  
-  return {
-    isValid: mismatches.length === 0,
-    mismatches,
-    detectedColumns: originalColumns.slice(0, 6),
-    suggestedOrder,
-    canAutoFix: allColumnsExist && mismatches.every(m => m.suggestedFix === 'reorder'),
-  };
-};
-
-// Simple Levenshtein distance for fuzzy matching
-const levenshteinDistance = (a: string, b: string): number => {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
-  
-  const matrix: number[][] = [];
-  
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i];
-  }
-  
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j;
-  }
-  
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i - 1) === a.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-  
-  return matrix[b.length][a.length];
 };
 
 const validatePhoneNumber = (phone: string): boolean => {
@@ -230,18 +70,6 @@ export const useCallSheetUpload = () => {
   const queryClient = useQueryClient();
   const [parsedData, setParsedData] = useState<UploadValidationResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
-  const [isCancelling, setIsCancelling] = useState(false);
-  const abortControllerRef = useRef<AbortController | null>(null);
-
-  // Helper to calculate ETA
-  const calculateETA = (startTime: number, currentItem: number, totalItems: number): number => {
-    if (currentItem === 0) return 0;
-    const elapsed = (Date.now() - startTime) / 1000;
-    const itemsPerSecond = currentItem / elapsed;
-    const remainingItems = totalItems - currentItem;
-    return Math.ceil(remainingItems / itemsPerSecond);
-  };
 
   // Subscribe to realtime updates for upload status changes
   useEffect(() => {
@@ -340,61 +168,22 @@ export const useCallSheetUpload = () => {
             return;
           }
 
-          // Get the original column names in order from the first row
+          // Normalize column names
           const firstRow = jsonData[0];
-          const originalColumnNames = Object.keys(firstRow);
-          
-          // Analyze column structure
-          const columnAnalysis = analyzeColumns(originalColumnNames);
-          
-          // Validate exact column count
-          if (originalColumnNames.length < REQUIRED_COLUMNS_IN_ORDER.length) {
-            // Return analysis with empty data so UI can show suggestions
-            resolve({
-              totalEntries: 0,
-              validEntries: 0,
-              invalidEntries: 0,
-              duplicateEntries: 0,
-              contacts: [],
-              columnAnalysis: {
-                ...columnAnalysis,
-                isValid: false,
-                mismatches: REQUIRED_COLUMNS_IN_ORDER.map((col, i) => ({
-                  position: i + 1,
-                  expected: COLUMN_DISPLAY_NAMES[i],
-                  found: originalColumnNames[i] || '(missing)',
-                  suggestedFix: originalColumnNames[i] ? 'rename' : 'missing' as const,
-                })),
-              },
-            });
+          const columnMap: Record<string, string> = {};
+          Object.keys(firstRow).forEach(col => {
+            columnMap[normalizeColumnName(col)] = col;
+          });
+
+          // Check required columns
+          const missingColumns = REQUIRED_COLUMNS.filter(
+            required => !Object.keys(columnMap).includes(required)
+          );
+
+          if (missingColumns.length > 0) {
+            reject(new Error(`Missing required columns: ${missingColumns.join(', ')}`));
             return;
           }
-
-          // If columns are not valid, return analysis with suggestions
-          if (!columnAnalysis.isValid) {
-            resolve({
-              totalEntries: jsonData.length,
-              validEntries: 0,
-              invalidEntries: jsonData.length,
-              duplicateEntries: 0,
-              contacts: [],
-              columnAnalysis,
-            });
-            return;
-          }
-          
-          // Normalize column names for validation
-          const normalizedColumns = originalColumnNames.map(col => normalizeColumnName(col));
-
-          // Create column map using original names at correct positions
-          const columnMap: Record<string, string> = {
-            'name_of_the_company': originalColumnNames[0],
-            'contact_number': originalColumnNames[1],
-            'industry': originalColumnNames[2],
-            'address': originalColumnNames[3],
-            'area': originalColumnNames[4],
-            'emirate': originalColumnNames[5],
-          };
 
           // Fetch existing phone numbers to check duplicates
           const { data: existingContacts } = await supabase
@@ -424,21 +213,19 @@ export const useCallSheetUpload = () => {
           jsonData.forEach((row, index) => {
             const errors: string[] = [];
             
-            // Map to new column structure
-            const companyName = String(row[columnMap['name_of_the_company']] || '').trim();
-            const phoneNumber = String(row[columnMap['contact_number']] || '').trim();
-            const industry = String(row[columnMap['industry']] || '').trim();
-            const address = String(row[columnMap['address']] || '').trim();
-            const area = String(row[columnMap['area']] || '').trim();
-            const emirate = String(row[columnMap['emirate']] || '').trim();
+            const companyName = String(row[columnMap['company_name']] || '').trim();
+            const contactPersonName = String(row[columnMap['contact_person_name']] || '').trim();
+            const phoneNumber = String(row[columnMap['phone_number']] || '').trim();
+            const tradeLicenseNumber = String(row[columnMap['trade_license_number']] || '').trim();
+            const city = columnMap['city'] ? String(row[columnMap['city']] || '').trim() : undefined;
+            const industry = columnMap['industry'] ? String(row[columnMap['industry']] || '').trim() : undefined;
+            const area = columnMap['area'] ? String(row[columnMap['area']] || '').trim() : undefined;
 
-            // Validate ALL required fields (all 6 columns are compulsory)
-            if (!companyName) errors.push('Name of the Company is required');
-            if (!phoneNumber) errors.push('Contact Number is required');
-            if (!industry) errors.push('Industry is required');
-            if (!address) errors.push('Address is required');
-            if (!area) errors.push('Area is required');
-            if (!emirate) errors.push('Emirate is required');
+            // Validate required fields
+            if (!companyName) errors.push('Company name is required');
+            if (!contactPersonName) errors.push('Contact person name is required');
+            if (!phoneNumber) errors.push('Phone number is required');
+            // trade_license_number is optional during upload, required when lead is qualified
 
             // Validate phone format
             if (phoneNumber && !validatePhoneNumber(phoneNumber)) {
@@ -476,10 +263,10 @@ export const useCallSheetUpload = () => {
             contacts.push({
               rowNumber: index + 2, // +2 for header row and 1-indexing
               companyName,
-              contactPersonName: '', // Not in new template, set empty
+              contactPersonName,
               phoneNumber: cleanedPhone || phoneNumber,
-              tradeLicenseNumber: '', // Not in new template, set empty
-              city: emirate, // Map emirate to city field
+              tradeLicenseNumber,
+              city,
               industry,
               area,
               isValid,
@@ -504,48 +291,16 @@ export const useCallSheetUpload = () => {
     });
   }, []);
 
-  // Process file upload with progress tracking
+  // Process file upload
   const processFile = useCallback(async (file: File) => {
     setIsProcessing(true);
     setParsedData(null);
-    const startTime = Date.now();
 
     try {
-      // Stage 1: Reading file
-      setUploadProgress({
-        stage: 'reading',
-        percentage: 10,
-        startTime,
-      });
-
-      // Stage 2: Parsing
-      setUploadProgress({
-        stage: 'parsing',
-        percentage: 30,
-        startTime,
-      });
-
       const result = await parseFile(file);
-
-      // Stage 3: Validation complete
-      setUploadProgress({
-        stage: 'validating',
-        percentage: 50,
-        currentItem: result.totalEntries,
-        totalItems: result.totalEntries,
-        startTime,
-      });
-
       setParsedData(result);
-      
-      // Reset progress after a brief delay
-      setTimeout(() => {
-        setUploadProgress(null);
-      }, 500);
-      
       return result;
     } catch (error) {
-      setUploadProgress(null);
       toast.error(error instanceof Error ? error.message : 'Failed to process file');
       throw error;
     } finally {
@@ -558,31 +313,7 @@ export const useCallSheetUpload = () => {
     mutationFn: async ({ file, validationResult }: { file: File; validationResult: UploadValidationResult }) => {
       if (!user?.id) throw new Error('Not authenticated');
 
-      // Create new abort controller for this upload
-      abortControllerRef.current = new AbortController();
-      const signal = abortControllerRef.current.signal;
-
-      const checkCancelled = () => {
-        if (signal.aborted) {
-          throw new Error('Upload cancelled');
-        }
-      };
-
-      const startTime = Date.now();
       const today = new Date().toISOString().split('T')[0];
-      const validContacts = validationResult.contacts.filter(c => c.isValid);
-      const totalSteps = 3 + (validContacts.length > 0 ? 2 : 0); // upload record + contacts + call list + rejections
-
-      checkCancelled();
-
-      // Stage 1: Creating upload record
-      setUploadProgress({
-        stage: 'uploading',
-        percentage: 10,
-        currentItem: 1,
-        totalItems: totalSteps,
-        startTime,
-      });
 
       // Create upload record - auto-approved
       const { data: upload, error: uploadError } = await supabase
@@ -604,23 +335,13 @@ export const useCallSheetUpload = () => {
 
       if (uploadError) throw uploadError;
 
-      checkCancelled();
-
       // Insert valid contacts and get their IDs
+      const validContacts = validationResult.contacts.filter(c => c.isValid);
+      
       if (validContacts.length > 0) {
-        // Stage 2: Creating contacts
-        setUploadProgress({
-          stage: 'creating_contacts',
-          percentage: 40,
-          currentItem: 0,
-          totalItems: validContacts.length,
-          startTime,
-          estimatedTimeRemaining: calculateETA(startTime, 1, validContacts.length),
-        });
-
         const contactsToInsert = validContacts.map(c => ({
           company_name: c.companyName,
-          contact_person_name: c.contactPersonName || c.companyName,
+          contact_person_name: c.contactPersonName,
           phone_number: c.phoneNumber,
           trade_license_number: c.tradeLicenseNumber || 'PENDING',
           city: c.city || null,
@@ -631,84 +352,42 @@ export const useCallSheetUpload = () => {
           status: 'new' as const,
         }));
 
-        // Insert contacts in batches for progress tracking
-        const batchSize = 50;
-        for (let i = 0; i < contactsToInsert.length; i += batchSize) {
-          checkCancelled();
-          
-          const batch = contactsToInsert.slice(i, i + batchSize);
-          const { error: contactsError } = await supabase
-            .from('master_contacts')
-            .insert(batch);
-
-          if (contactsError) {
-            console.error('Error inserting contacts batch:', contactsError);
-          }
-
-          const processed = Math.min(i + batchSize, contactsToInsert.length);
-          setUploadProgress({
-            stage: 'creating_contacts',
-            percentage: 40 + Math.round((processed / contactsToInsert.length) * 30),
-            currentItem: processed,
-            totalItems: validContacts.length,
-            startTime,
-            estimatedTimeRemaining: calculateETA(startTime, processed, validContacts.length),
-          });
-        }
-
-        checkCancelled();
-
-        // Stage 3: Creating call list
-        setUploadProgress({
-          stage: 'creating_call_list',
-          percentage: 75,
-          currentItem: 0,
-          totalItems: validContacts.length,
-          startTime,
-        });
-
-        // Fetch the inserted contacts by phone numbers
-        const phoneNumbers = validContacts.map(c => c.phoneNumber);
-        const { data: insertedContacts, error: fetchError } = await supabase
+        // Insert contacts
+        const { error: contactsError } = await supabase
           .from('master_contacts')
-          .select('id')
-          .eq('current_owner_agent_id', user.id)
-          .in('phone_number', phoneNumbers);
+          .insert(contactsToInsert);
 
-        if (fetchError) {
-          console.error('Error fetching inserted contacts:', fetchError);
-        } else if (insertedContacts && insertedContacts.length > 0) {
-          const callListEntries = insertedContacts.map((contact, index) => ({
-            agent_id: user.id,
-            contact_id: contact.id,
-            upload_id: upload.id,
-            list_date: today,
-            call_order: index + 1,
-            call_status: 'pending' as const,
-          }));
+        if (contactsError) {
+          console.error('Error inserting contacts:', contactsError);
+        } else {
+          // Fetch the inserted contacts by phone numbers (agent owns them now)
+          const phoneNumbers = validContacts.map(c => c.phoneNumber);
+          const { data: insertedContacts, error: fetchError } = await supabase
+            .from('master_contacts')
+            .select('id')
+            .eq('current_owner_agent_id', user.id)
+            .in('phone_number', phoneNumbers);
 
-          // Insert call list in batches
-          for (let i = 0; i < callListEntries.length; i += batchSize) {
-            checkCancelled();
-            
-            const batch = callListEntries.slice(i, i + batchSize);
+          if (fetchError) {
+            console.error('Error fetching inserted contacts:', fetchError);
+          } else if (insertedContacts && insertedContacts.length > 0) {
+            // Create approved call list entries immediately
+            const callListEntries = insertedContacts.map((contact, index) => ({
+              agent_id: user.id,
+              contact_id: contact.id,
+              upload_id: upload.id,
+              list_date: today,
+              call_order: index + 1,
+              call_status: 'pending' as const,
+            }));
+
             const { error: callListError } = await supabase
               .from('approved_call_list')
-              .insert(batch);
+              .insert(callListEntries);
 
             if (callListError) {
-              console.error('Error creating call list batch:', callListError);
+              console.error('Error creating call list:', callListError);
             }
-
-            const processed = Math.min(i + batchSize, callListEntries.length);
-            setUploadProgress({
-              stage: 'creating_call_list',
-              percentage: 75 + Math.round((processed / callListEntries.length) * 20),
-              currentItem: processed,
-              totalItems: callListEntries.length,
-              startTime,
-              estimatedTimeRemaining: calculateETA(startTime, processed, callListEntries.length),
-            });
           }
         }
       }
@@ -730,42 +409,18 @@ export const useCallSheetUpload = () => {
           .insert(rejectionsToInsert);
       }
 
-      // Complete
-      setUploadProgress({
-        stage: 'complete',
-        percentage: 100,
-        startTime,
-      });
-
       return upload;
     },
     onSuccess: (data) => {
-      abortControllerRef.current = null;
       toast.success(`Call sheet uploaded and approved! ${data.approved_count || 0} contacts added to your call list.`);
       setParsedData(null);
-      setUploadProgress(null);
       queryClient.invalidateQueries({ queryKey: ['upload-history'] });
       queryClient.invalidateQueries({ queryKey: ['call-list'] });
     },
     onError: (error) => {
-      abortControllerRef.current = null;
-      setUploadProgress(null);
-      setIsCancelling(false);
-      if (error.message === 'Upload cancelled') {
-        toast.info('Upload cancelled');
-      } else {
-        toast.error(`Upload failed: ${error.message}`);
-      }
+      toast.error(`Upload failed: ${error.message}`);
     },
   });
-
-  // Cancel upload function
-  const cancelUpload = useCallback(() => {
-    if (abortControllerRef.current) {
-      setIsCancelling(true);
-      abortControllerRef.current.abort();
-    }
-  }, []);
 
   const clearParsedData = useCallback(() => {
     setParsedData(null);
@@ -816,7 +471,6 @@ export const useCallSheetUpload = () => {
   return {
     parsedData,
     isProcessing,
-    uploadProgress,
     processFile,
     submitUpload: submitUpload.mutate,
     isSubmitting: submitUpload.isPending,
@@ -826,7 +480,5 @@ export const useCallSheetUpload = () => {
     fetchRejectionDetails,
     resubmitUpload: resubmitUpload.mutate,
     isResubmitting: resubmitUpload.isPending,
-    cancelUpload,
-    isCancelling,
   };
 };

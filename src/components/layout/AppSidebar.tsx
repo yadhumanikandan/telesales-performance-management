@@ -12,6 +12,7 @@ import {
   Upload,
   Users,
   BarChart3,
+  MessageSquare,
   Settings,
   LogOut,
   Target,
@@ -20,14 +21,10 @@ import {
   Trophy,
   Shield,
   Bell,
+  AlertTriangle,
   TrendingDown,
   ChevronRight,
-  History,
 } from 'lucide-react';
-import { canAccessPage, canUseFeature } from '@/config/rolePermissions';
-import { Database } from '@/integrations/supabase/types';
-
-type AppRole = Database['public']['Enums']['app_role'];
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -78,19 +75,11 @@ export const AppSidebar: React.FC = () => {
   const { streakData } = useLoginStreak();
   const { alerts, activeAlertsCount, acknowledgeAlert } = usePerformanceAlerts();
   
+  const isSupervisor = userRole === 'supervisor';
   const isTeamLeader = !!ledTeamId;
-  const role = userRole as AppRole;
   
-  // Helper function to check page access
-  const hasPageAccess = (path: string) => canAccessPage(role, path, isTeamLeader);
-  
-  // Helper function to check feature access
-  const hasFeatureAccess = (feature: string) => canUseFeature(role, feature);
-  
-  // Section visibility
-  const showManagementSection = hasPageAccess('/supervisor') || hasPageAccess('/reports') || (hasPageAccess('/my-team') && ['supervisor', 'operations_head', 'admin', 'super_admin'].includes(userRole || ''));
-  const showAdminSection = hasPageAccess('/team-management') || hasPageAccess('/user-management');
-  const showTeamLeaderSection = isTeamLeader && userRole === 'agent';
+  // Dashboard access is restricted to supervisors, admins, and management
+  const canAccessDashboard = ['admin', 'super_admin', 'operations_head', 'supervisor', 'sales_controller'].includes(userRole || '');
 
   // Fetch user's team name
   const { data: userTeam } = useQuery({
@@ -275,18 +264,17 @@ export const AppSidebar: React.FC = () => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {hasPageAccess('/dashboard') && (
+        {canAccessDashboard && (
           <NavItem to="/dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Dashboard" />
         )}
         <NavItem to="/profile" icon={<UserCircle className="w-5 h-5" />} label="My Profile" />
         <NavItem to="/leaderboard" icon={<Trophy className="w-5 h-5" />} label="Leaderboard" />
         <NavItem to="/call-list" icon={<Phone className="w-5 h-5" />} label="Call List" />
         <NavItem to="/upload" icon={<Upload className="w-5 h-5" />} label="Upload Contacts" />
-        <NavItem to="/upload-history" icon={<History className="w-5 h-5" />} label="Upload History" />
         <NavItem to="/leads" icon={<Target className="w-5 h-5" />} label="Leads" />
         
         {/* Team Leader Section - Show only for team leaders who are not supervisors */}
-        {showTeamLeaderSection && (
+        {isTeamLeader && !['supervisor', 'operations_head', 'admin', 'super_admin'].includes(userRole || '') && (
           <>
             <div className="pt-4 pb-2">
               <p className="px-4 text-xs font-bold text-sidebar-muted uppercase tracking-wider">
@@ -297,46 +285,32 @@ export const AppSidebar: React.FC = () => {
           </>
         )}
         
-        {/* Management Section */}
-        {showManagementSection && (
+        {(userRole === 'supervisor' || userRole === 'operations_head' || userRole === 'admin' || userRole === 'super_admin') && (
           <>
             <div className="pt-4 pb-2">
               <p className="px-4 text-xs font-bold text-sidebar-muted uppercase tracking-wider">
                 Management
               </p>
             </div>
-            {isTeamLeader && ['supervisor', 'operations_head', 'admin', 'super_admin'].includes(userRole || '') && (
+            {isTeamLeader && (
               <NavItem to="/my-team" icon={<Users className="w-5 h-5" />} label="My Team" />
             )}
-            {hasPageAccess('/supervisor') && (
-              <NavItem to="/supervisor" icon={<BarChart3 className="w-5 h-5" />} label="Team Overview" />
-            )}
-            {hasPageAccess('/reports') && (
-              <NavItem to="/reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />
-            )}
-            {hasPageAccess('/alert-history') && (
-              <NavItem to="/alert-history" icon={<History className="w-5 h-5" />} label="Alert History" />
-            )}
+            <NavItem to="/supervisor" icon={<BarChart3 className="w-5 h-5" />} label="Team Overview" />
+            <NavItem to="/reports" icon={<BarChart3 className="w-5 h-5" />} label="Reports" />
           </>
         )}
 
-        {/* Administration Section */}
-        {showAdminSection && (
+        {(userRole === 'admin' || userRole === 'super_admin' || (isSupervisor && isTeamLeader)) && (
           <>
             <div className="pt-4 pb-2">
               <p className="px-4 text-xs font-bold text-sidebar-muted uppercase tracking-wider">
                 Administration
               </p>
             </div>
-            {hasPageAccess('/team-management') && (
+            {(userRole === 'admin' || userRole === 'super_admin') && (
               <NavItem to="/team-management" icon={<Users className="w-5 h-5" />} label="Team Management" />
             )}
-            {hasPageAccess('/user-management') && (
-              <NavItem to="/user-management" icon={<Shield className="w-5 h-5" />} label="User Management" />
-            )}
-            {hasPageAccess('/permissions') && (
-              <NavItem to="/permissions" icon={<Shield className="w-5 h-5" />} label="Permissions" />
-            )}
+            <NavItem to="/user-management" icon={<Shield className="w-5 h-5" />} label="User Management" />
           </>
         )}
 
