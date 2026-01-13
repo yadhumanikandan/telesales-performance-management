@@ -2,15 +2,13 @@ import React from 'react';
 import { ScheduledReportsManager } from '@/components/reports/ScheduledReportsManager';
 import { WeeklyReportPDFGenerator } from '@/components/reports/WeeklyReportPDFGenerator';
 import { TeamReportGenerator } from '@/components/reports/TeamReportGenerator';
-import { ApprovedLeadsExport } from '@/components/reports/ApprovedLeadsExport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Download, Users, FileCheck } from 'lucide-react';
+import { Calendar, Download, Users } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const ReportsPage: React.FC = () => {
-  const { ledTeamId, userRole } = useAuth();
+  const { ledTeamId } = useAuth();
   const isTeamLeader = !!ledTeamId;
-  const canExportApprovedLeads = userRole === 'admin' || userRole === 'super_admin';
 
   return (
     <div className="space-y-6">
@@ -21,14 +19,8 @@ const ReportsPage: React.FC = () => {
         </p>
       </div>
 
-      <Tabs defaultValue={canExportApprovedLeads ? "approved" : (isTeamLeader ? "team" : "generate")} className="space-y-4">
-        <TabsList className="flex-wrap">
-          {canExportApprovedLeads && (
-            <TabsTrigger value="approved" className="gap-2">
-              <FileCheck className="h-4 w-4" />
-              Approved Leads Export
-            </TabsTrigger>
-          )}
+      <Tabs defaultValue={isTeamLeader ? "team" : "generate"} className="space-y-4">
+        <TabsList>
           {isTeamLeader && (
             <TabsTrigger value="team" className="gap-2">
               <Users className="h-4 w-4" />
@@ -44,12 +36,6 @@ const ReportsPage: React.FC = () => {
             Scheduled Reports
           </TabsTrigger>
         </TabsList>
-
-        {canExportApprovedLeads && (
-          <TabsContent value="approved" className="space-y-4">
-            <ApprovedLeadsExport />
-          </TabsContent>
-        )}
 
         {isTeamLeader && (
           <TabsContent value="team" className="space-y-4">

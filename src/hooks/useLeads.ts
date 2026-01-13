@@ -130,6 +130,10 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
             trade_license_number,
             city,
             industry
+          ),
+          profiles:agent_id (
+            full_name,
+            team_id
           )
         `)
         .order('created_at', { ascending: false });
@@ -154,24 +158,14 @@ export const useLeads = (statusFilter?: LeadStatus | 'all', filters?: LeadFilter
 
       if (error) throw error;
 
-      // Fetch profiles for agent info using profiles_public view
-      const agentIds = [...new Set((data || []).map(item => item.agent_id))];
-      const { data: profiles } = await supabase
-        .from('profiles_public')
-        .select('id, full_name, team_id')
-        .in('id', agentIds);
-
-      const profileMap = new Map(profiles?.map(p => [p.id, p]) || []);
-
       let mappedLeads = (data || []).map(item => {
         const tradeLicenseNumber = item.master_contacts?.trade_license_number || null;
-        const profile = profileMap.get(item.agent_id);
         return {
           id: item.id,
           contactId: item.contact_id,
           agentId: item.agent_id,
-          agentName: profile?.full_name || 'Unknown',
-          teamId: profile?.team_id || null,
+          agentName: (item.profiles as any)?.full_name || 'Unknown',
+          teamId: (item.profiles as any)?.team_id || null,
           teamName: null, // Will be populated if needed
           companyName: item.master_contacts?.company_name || 'Unknown',
           contactPersonName: item.master_contacts?.contact_person_name || 'Unknown',
