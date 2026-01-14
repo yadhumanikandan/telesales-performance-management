@@ -109,6 +109,48 @@ export const UploadPage: React.FC = () => {
         industry: 'Services',
         area: 'Khalifa City',
       },
+      {
+        company_name: 'Gulf Tech Solutions',
+        phone_number: '+971503456789',
+        city: 'Sharjah',
+        industry: 'Technology',
+        area: 'Industrial Area',
+      },
+      {
+        company_name: 'Al Noor Healthcare',
+        phone_number: '+971504567890',
+        city: 'Dubai',
+        industry: 'Healthcare',
+        area: 'Dubai Marina',
+      },
+      {
+        company_name: 'Emirates Construction',
+        phone_number: '+971505678901',
+        city: 'Ajman',
+        industry: 'Construction',
+        area: 'Al Jurf',
+      },
+      {
+        company_name: 'Royal Finance Group',
+        phone_number: '+971506789012',
+        city: 'Dubai',
+        industry: 'Finance',
+        area: 'DIFC',
+      },
+      {
+        company_name: 'Oasis Hospitality',
+        phone_number: '+971507890123',
+        city: 'Ras Al Khaimah',
+        industry: 'Hospitality',
+        area: 'Al Hamra',
+      },
+      {
+        company_name: 'Smart Retail Co',
+        phone_number: '+971508901234',
+        city: 'Fujairah',
+        industry: 'Retail',
+        area: 'City Center',
+      },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(sampleData);
