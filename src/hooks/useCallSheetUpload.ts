@@ -565,9 +565,9 @@ export const useCallSheetUpload = () => {
       if (validContacts.length > 0) {
         const contactsToInsert = validContacts.map(c => ({
           company_name: c.companyName,
-          contact_person_name: c.contactPersonName || '',
+          contact_person_name: c.contactPersonName || null,
           phone_number: c.phoneNumber,
-          trade_license_number: c.tradeLicenseNumber || 'PENDING',
+          trade_license_number: c.tradeLicenseNumber || null,
           city: c.city || null,
           industry: c.industry || null,
           area: c.area || null,

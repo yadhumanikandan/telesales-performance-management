@@ -799,7 +799,7 @@ export type Database = {
           area: string | null
           city: string | null
           company_name: string
-          contact_person_name: string
+          contact_person_name: string | null
           created_at: string | null
           current_owner_agent_id: string | null
           first_upload_date: string | null
@@ -811,14 +811,14 @@ export type Database = {
           phone_number: string
           pool_entry_date: string | null
           status: Database["public"]["Enums"]["contact_status"] | null
-          trade_license_number: string
+          trade_license_number: string | null
           updated_at: string | null
         }
         Insert: {
           area?: string | null
           city?: string | null
           company_name: string
-          contact_person_name: string
+          contact_person_name?: string | null
           created_at?: string | null
           current_owner_agent_id?: string | null
           first_upload_date?: string | null
@@ -830,14 +830,14 @@ export type Database = {
           phone_number: string
           pool_entry_date?: string | null
           status?: Database["public"]["Enums"]["contact_status"] | null
-          trade_license_number: string
+          trade_license_number?: string | null
           updated_at?: string | null
         }
         Update: {
           area?: string | null
           city?: string | null
           company_name?: string
-          contact_person_name?: string
+          contact_person_name?: string | null
           created_at?: string | null
           current_owner_agent_id?: string | null
           first_upload_date?: string | null
@@ -849,7 +849,7 @@ export type Database = {
           phone_number?: string
           pool_entry_date?: string | null
           status?: Database["public"]["Enums"]["contact_status"] | null
-          trade_license_number?: string
+          trade_license_number?: string | null
           updated_at?: string | null
         }
         Relationships: []
