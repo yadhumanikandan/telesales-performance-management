@@ -19,12 +19,19 @@ export interface ParsedContact {
   errors: string[];
 }
 
+export interface DuplicatesByAgent {
+  agentId: string | null;
+  agentName: string;
+  count: number;
+}
+
 export interface UploadValidationResult {
   totalEntries: number;
   validEntries: number;
   invalidEntries: number;
   duplicateEntries: number;
   contacts: ParsedContact[];
+  duplicatesByAgent?: DuplicatesByAgent[];
 }
 
 export interface UploadHistory {
@@ -405,6 +412,9 @@ export const useCallSheetUpload = () => {
           let validCount = 0;
           let invalidCount = 0;
           let duplicateCount = 0;
+          
+          // Track duplicates by agent for admin summary
+          const duplicatesByAgentMap = new Map<string, { agentId: string | null; agentName: string; count: number }>();
 
           jsonData.forEach((row, index) => {
             const errors: string[] = [];
@@ -438,6 +448,19 @@ export const useCallSheetUpload = () => {
               const owner = existingPhones.get(cleanedPhone);
               errors.push(`Already exists (owned by ${owner?.ownerName || 'another agent'})`);
               isDuplicate = true;
+              
+              // Track for agent summary
+              const agentKey = owner?.ownerId || 'unknown';
+              const existing = duplicatesByAgentMap.get(agentKey);
+              if (existing) {
+                existing.count++;
+              } else {
+                duplicatesByAgentMap.set(agentKey, {
+                  agentId: owner?.ownerId || null,
+                  agentName: owner?.ownerName || 'Unknown Agent',
+                  count: 1
+                });
+              }
             }
 
             if (dncPhones.has(cleanedPhone)) {
@@ -470,12 +493,17 @@ export const useCallSheetUpload = () => {
             });
           });
 
+          // Convert duplicates map to array sorted by count descending
+          const duplicatesByAgent = Array.from(duplicatesByAgentMap.values())
+            .sort((a, b) => b.count - a.count);
+
           resolve({
             totalEntries: contacts.length,
             validEntries: validCount,
             invalidEntries: invalidCount,
             duplicateEntries: duplicateCount,
             contacts,
+            duplicatesByAgent,
           });
         } catch (err) {
           reject(new Error('Failed to parse file. Please ensure it is a valid Excel or CSV file.'));
