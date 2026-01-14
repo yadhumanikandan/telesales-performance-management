@@ -1,8 +1,8 @@
 company_name,phone_number,city,area,industry
-"Valid Company 1","0501234567","Dubai","Business Bay","Technology"
-"Valid Company 2","0502345678","Abu Dhabi","Al Reem","Finance"
-"Missing City Co","0503456789","","Downtown","Retail"
-"Missing Area Co","0504567890","Sharjah","","Healthcare"
-"Missing Industry Co","0505678901","Dubai","Marina",""
-"All Missing Co","0506789012","","",""
-"Another Valid","0507890123","Ajman","Industrial","Manufacturing"
+Valid Company 1,+971501234567,Dubai,Business Bay,Technology
+Valid Company 2,+971502345678,Abu Dhabi,Al Reem,Finance
+Missing City Co,+971503456789,,Downtown,Retail
+Missing Area Co,+971504567890,Sharjah,,Healthcare
+Missing Industry Co,+971505678901,Dubai,Marina,
+All Missing Co,+971506789012,,,
+Another Valid,+971507890123,Ajman,Industrial,Manufacturing
