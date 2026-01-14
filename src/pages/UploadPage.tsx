@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import {
@@ -32,7 +33,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatDistanceToNow } from 'date-fns';
-import { useCallSheetUpload, RejectionDetail, UploadHistory } from '@/hooks/useCallSheetUpload';
+import { useCallSheetUpload, RejectionDetail, UploadHistory, ParsedContact } from '@/hooks/useCallSheetUpload';
 import { TalkTimeUpload } from '@/components/upload/TalkTimeUpload';
 import { cn } from '@/lib/utils';
 
@@ -50,6 +51,7 @@ export const UploadPage: React.FC = () => {
     fetchRejectionDetails,
     resubmitUpload,
     isResubmitting,
+    updateContact,
   } = useCallSheetUpload();
 
   const [isDragging, setIsDragging] = useState(false);
@@ -362,8 +364,8 @@ export const UploadPage: React.FC = () => {
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Some entries have issues</AlertTitle>
                       <AlertDescription>
-                        {parsedData.invalidEntries} entries have validation errors and won't be imported.
-                        Check the preview below for details.
+                        {parsedData.invalidEntries} entries have validation errors. 
+                        You can edit invalid rows inline below to fix them before submitting.
                       </AlertDescription>
                     </Alert>
                   )}
@@ -432,13 +434,96 @@ export const UploadPage: React.FC = () => {
                               className={cn(!contact.isValid && "bg-destructive/5")}
                             >
                               <TableCell className="text-muted-foreground">{contact.rowNumber}</TableCell>
-                              <TableCell className="font-medium">{contact.companyName || '-'}</TableCell>
-                              <TableCell>{contact.contactPersonName || '-'}</TableCell>
-                              <TableCell className="font-mono text-sm">{contact.phoneNumber || '-'}</TableCell>
-                              <TableCell>{contact.tradeLicenseNumber || '-'}</TableCell>
-                              <TableCell>{contact.city || '-'}</TableCell>
-                              <TableCell>{contact.area || '-'}</TableCell>
-                              <TableCell>{contact.industry || '-'}</TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.companyName}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'companyName', e.target.value)}
+                                    className={cn(
+                                      "h-8 text-sm",
+                                      !contact.companyName && "border-destructive"
+                                    )}
+                                    placeholder="Company name"
+                                  />
+                                ) : (
+                                  <span className="font-medium">{contact.companyName || '-'}</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.contactPersonName}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'contactPersonName', e.target.value)}
+                                    className="h-8 text-sm"
+                                    placeholder="Contact person"
+                                  />
+                                ) : (
+                                  contact.contactPersonName || '-'
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.phoneNumber}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'phoneNumber', e.target.value)}
+                                    className={cn(
+                                      "h-8 text-sm font-mono",
+                                      !contact.phoneNumber && "border-destructive"
+                                    )}
+                                    placeholder="Phone number"
+                                  />
+                                ) : (
+                                  <span className="font-mono text-sm">{contact.phoneNumber || '-'}</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.tradeLicenseNumber}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'tradeLicenseNumber', e.target.value)}
+                                    className="h-8 text-sm"
+                                    placeholder="License #"
+                                  />
+                                ) : (
+                                  contact.tradeLicenseNumber || '-'
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.city || ''}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'city', e.target.value)}
+                                    className="h-8 text-sm"
+                                    placeholder="City"
+                                  />
+                                ) : (
+                                  contact.city || '-'
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.area || ''}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'area', e.target.value)}
+                                    className="h-8 text-sm"
+                                    placeholder="Area"
+                                  />
+                                ) : (
+                                  contact.area || '-'
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {!contact.isValid ? (
+                                  <Input
+                                    value={contact.industry || ''}
+                                    onChange={(e) => updateContact(contact.rowNumber, 'industry', e.target.value)}
+                                    className="h-8 text-sm"
+                                    placeholder="Industry"
+                                  />
+                                ) : (
+                                  contact.industry || '-'
+                                )}
+                              </TableCell>
                               <TableCell>
                                 {contact.isValid ? (
                                   <CheckCircle2 className="w-4 h-4 text-green-600" />
@@ -511,9 +596,6 @@ export const UploadPage: React.FC = () => {
                       <CheckCircle2 className="w-3 h-3 text-green-600" /> company_name
                     </li>
                     <li className="flex items-center gap-2">
-                      <CheckCircle2 className="w-3 h-3 text-green-600" /> contact_person_name
-                    </li>
-                    <li className="flex items-center gap-2">
                       <CheckCircle2 className="w-3 h-3 text-green-600" /> phone_number
                     </li>
                   </ul>
@@ -521,6 +603,9 @@ export const UploadPage: React.FC = () => {
                 <div>
                   <h4 className="font-medium mb-2">Optional Columns</h4>
                   <ul className="space-y-1 text-sm text-muted-foreground">
+                    <li className="flex items-center gap-2">
+                      <AlertTriangle className="w-3 h-3 text-yellow-600" /> contact_person_name
+                    </li>
                     <li className="flex items-center gap-2">
                       <AlertTriangle className="w-3 h-3 text-yellow-600" /> trade_license_number
                     </li>
