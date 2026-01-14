@@ -127,6 +127,8 @@ export const CallListPage: React.FC = () => {
   const [selectedContact, setSelectedContact] = useState<CallListContact | null>(null);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackStatus | null>(null);
   const [feedbackNotes, setFeedbackNotes] = useState('');
+  const [callbackDate, setCallbackDate] = useState<Date | undefined>(undefined);
+  const [callbackTime, setCallbackTime] = useState<string>('10:00');
   
   // Export dialog state
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -262,23 +264,34 @@ export const CallListPage: React.FC = () => {
     setSelectedContact(contact);
     setSelectedFeedback(null);
     setFeedbackNotes('');
+    setCallbackDate(undefined);
+    setCallbackTime('10:00');
     setFeedbackDialogOpen(true);
   };
 
   const handleSubmitFeedback = () => {
     if (!selectedContact || !selectedFeedback) return;
 
+    // Build notes with callback date/time if callback is selected
+    let finalNotes = feedbackNotes;
+    if (selectedFeedback === 'callback' && callbackDate) {
+      const callbackDateTime = `${format(callbackDate, 'yyyy-MM-dd')} at ${callbackTime}`;
+      finalNotes = `Callback scheduled: ${callbackDateTime}${feedbackNotes ? '. ' + feedbackNotes : ''}`;
+    }
+
     logFeedback({
       callListId: selectedContact.callListId,
       contactId: selectedContact.contactId,
       status: selectedFeedback,
-      notes: feedbackNotes || undefined,
+      notes: finalNotes || undefined,
     });
 
     setFeedbackDialogOpen(false);
     setSelectedContact(null);
     setSelectedFeedback(null);
     setFeedbackNotes('');
+    setCallbackDate(undefined);
+    setCallbackTime('10:00');
   };
 
   const handleQuickFeedback = (contact: CallListContact, status: FeedbackStatus) => {
@@ -1219,27 +1232,99 @@ export const CallListPage: React.FC = () => {
               ))}
             </div>
 
-            {/* Show notes field - required for interested/callback */}
-            {(selectedFeedback === 'interested' || selectedFeedback === 'callback') && (
+            {/* Callback date/time picker */}
+            {selectedFeedback === 'callback' && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Callback Date <span className="text-destructive">*</span>
+                    </label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal",
+                            !callbackDate && "text-muted-foreground",
+                            !callbackDate && "border-destructive"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {callbackDate ? format(callbackDate, 'PPP') : <span>Pick date</span>}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <CalendarComponent
+                          mode="single"
+                          selected={callbackDate}
+                          onSelect={setCallbackDate}
+                          disabled={(date) => date < new Date()}
+                          initialFocus
+                          className="p-3 pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">
+                      Callback Time <span className="text-destructive">*</span>
+                    </label>
+                    <Select value={callbackTime} onValueChange={setCallbackTime}>
+                      <SelectTrigger className="w-full">
+                        <Clock className="mr-2 h-4 w-4" />
+                        <SelectValue placeholder="Select time" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Array.from({ length: 13 }, (_, i) => i + 8).map((hour) => (
+                          <React.Fragment key={hour}>
+                            <SelectItem value={`${hour.toString().padStart(2, '0')}:00`}>
+                              {hour > 12 ? `${hour - 12}:00 PM` : hour === 12 ? '12:00 PM' : `${hour}:00 AM`}
+                            </SelectItem>
+                            <SelectItem value={`${hour.toString().padStart(2, '0')}:30`}>
+                              {hour > 12 ? `${hour - 12}:30 PM` : hour === 12 ? '12:30 PM' : `${hour}:30 AM`}
+                            </SelectItem>
+                          </React.Fragment>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {!callbackDate && (
+                  <p className="text-xs text-destructive">Callback date is required</p>
+                )}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Notes (optional)</label>
+                  <Textarea
+                    placeholder="Add any additional callback notes..."
+                    value={feedbackNotes}
+                    onChange={(e) => setFeedbackNotes(e.target.value)}
+                    rows={2}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Notes for interested status */}
+            {selectedFeedback === 'interested' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">
                   Notes <span className="text-destructive">*</span>
                 </label>
                 <Textarea
-                  placeholder={selectedFeedback === 'interested' 
-                    ? "Add details about the interest (required)..." 
-                    : "Add callback details (required)..."}
+                  placeholder="Add details about the interest (required)..."
                   value={feedbackNotes}
                   onChange={(e) => setFeedbackNotes(e.target.value)}
                   rows={3}
                   className={!feedbackNotes.trim() ? "border-destructive" : ""}
                 />
                 {!feedbackNotes.trim() && (
-                  <p className="text-xs text-destructive">Notes are required for {selectedFeedback} status</p>
+                  <p className="text-xs text-destructive">Notes are required for interested status</p>
                 )}
               </div>
             )}
 
+            {/* Optional notes for other statuses */}
             {selectedFeedback && selectedFeedback !== 'interested' && selectedFeedback !== 'callback' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Notes (optional)</label>
@@ -1262,7 +1347,8 @@ export const CallListPage: React.FC = () => {
               disabled={
                 !selectedFeedback || 
                 isLogging || 
-                ((selectedFeedback === 'interested' || selectedFeedback === 'callback') && !feedbackNotes.trim())
+                (selectedFeedback === 'interested' && !feedbackNotes.trim()) ||
+                (selectedFeedback === 'callback' && !callbackDate)
               }
             >
               {isLogging ? (
