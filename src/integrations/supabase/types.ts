@@ -1582,6 +1582,14 @@ export type Database = {
         Returns: boolean
       }
       check_dnc: { Args: { phone_to_check: string }; Returns: boolean }
+      check_duplicate_phone_numbers: {
+        Args: { phone_numbers: string[] }
+        Returns: {
+          exists_in_db: boolean
+          owner_agent_id: string
+          phone_number: string
+        }[]
+      }
       decrypt_sensitive_data: {
         Args: { encrypted_data: string }
         Returns: string

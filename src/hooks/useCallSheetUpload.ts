@@ -365,14 +365,27 @@ export const useCallSheetUpload = () => {
             return;
           }
 
-          // Fetch existing phone numbers to check duplicates
-          const { data: existingContacts } = await supabase
-            .from('master_contacts')
-            .select('phone_number');
+          // Extract all phone numbers from the file first for batch duplicate check
+          const allPhoneNumbers = jsonData.map(row => {
+            const phoneNumber = String(row[columnMap['phone_number']] || '').trim();
+            return cleanPhoneNumber(phoneNumber);
+          }).filter(p => p.length > 0);
 
-          const existingPhones = new Set(
-            (existingContacts || []).map(c => cleanPhoneNumber(c.phone_number))
-          );
+          // Use the database function to check duplicates against ALL agents' contacts (bypasses RLS)
+          const { data: duplicateCheck, error: duplicateError } = await supabase
+            .rpc('check_duplicate_phone_numbers', { phone_numbers: allPhoneNumbers });
+
+          if (duplicateError) {
+            console.error('Error checking duplicates:', duplicateError);
+          }
+
+          // Build a map of existing phone numbers and their owners
+          const existingPhones = new Map<string, string | null>();
+          (duplicateCheck || []).forEach((item: { phone_number: string; exists_in_db: boolean; owner_agent_id: string | null }) => {
+            if (item.exists_in_db) {
+              existingPhones.set(item.phone_number, item.owner_agent_id);
+            }
+          });
 
           // Fetch DNC list
           const { data: dncList } = await supabase
@@ -419,7 +432,7 @@ export const useCallSheetUpload = () => {
               errors.push('Duplicate in this file');
               isDuplicate = true;
             } else if (existingPhones.has(cleanedPhone)) {
-              errors.push('Already exists in database');
+              errors.push('Already exists in system (uploaded by another agent)');
               isDuplicate = true;
             }
 
