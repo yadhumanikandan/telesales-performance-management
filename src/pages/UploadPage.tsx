@@ -34,13 +34,15 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatDistanceToNow } from 'date-fns';
-import { useCallSheetUpload, RejectionDetail, UploadHistory, ParsedContact } from '@/hooks/useCallSheetUpload';
+import { useCallSheetUpload, RejectionDetail, UploadHistory, ParsedContact, DuplicatesByAgent } from '@/hooks/useCallSheetUpload';
 import { TalkTimeUpload } from '@/components/upload/TalkTimeUpload';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { usePermissions } from '@/hooks/usePermissions';
 
 export const UploadPage: React.FC = () => {
   const { profile } = useAuth();
+  const { isAdmin } = usePermissions();
   const {
     parsedData,
     isProcessing,
@@ -362,7 +364,29 @@ export const UploadPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Progress Bar */}
+                  {/* Duplicates by Agent Summary - Admin Only */}
+                  {isAdmin && parsedData.duplicatesByAgent && parsedData.duplicatesByAgent.length > 0 && (
+                    <div className="p-4 rounded-lg border bg-yellow-500/5 border-yellow-500/20">
+                      <div className="flex items-center gap-2 mb-3">
+                        <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                        <h4 className="font-medium text-sm">Duplicates by Agent</h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {parsedData.duplicatesByAgent.map((agent, idx) => (
+                          <div 
+                            key={agent.agentId || idx} 
+                            className="flex items-center justify-between p-2 rounded-md bg-background"
+                          >
+                            <span className="text-sm truncate flex-1">{agent.agentName}</span>
+                            <Badge variant="secondary" className="ml-2">
+                              {agent.count}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">Valid entries</span>
