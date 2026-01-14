@@ -71,6 +71,63 @@ export const useCallSheetUpload = () => {
   const [parsedData, setParsedData] = useState<UploadValidationResult | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Update a contact and revalidate
+  const updateContact = useCallback((rowNumber: number, field: keyof ParsedContact, value: string) => {
+    if (!parsedData) return;
+
+    setParsedData(prev => {
+      if (!prev) return prev;
+
+      const updatedContacts = prev.contacts.map(contact => {
+        if (contact.rowNumber !== rowNumber) return contact;
+
+        // Update the field
+        const updated = { ...contact, [field]: value };
+
+        // Revalidate
+        const errors: string[] = [];
+        
+        if (!updated.companyName) errors.push('Company name is required');
+        if (!updated.phoneNumber) errors.push('Phone number is required');
+        
+        if (updated.phoneNumber && !validatePhoneNumber(updated.phoneNumber)) {
+          errors.push('Invalid phone number format');
+        }
+
+        updated.errors = errors;
+        updated.isValid = errors.length === 0;
+
+        return updated;
+      });
+
+      // Recalculate counts
+      let validCount = 0;
+      let invalidCount = 0;
+      let duplicateCount = 0;
+
+      updatedContacts.forEach(c => {
+        const hasDuplicateError = c.errors.some(e => 
+          e.includes('Duplicate') || e.includes('Already exists')
+        );
+        if (hasDuplicateError) {
+          duplicateCount++;
+        } else if (c.isValid) {
+          validCount++;
+        } else {
+          invalidCount++;
+        }
+      });
+
+      return {
+        ...prev,
+        contacts: updatedContacts,
+        validEntries: validCount,
+        invalidEntries: invalidCount,
+        duplicateEntries: duplicateCount,
+      };
+    });
+  }, [parsedData]);
+
   // Subscribe to realtime updates for upload status changes
   useEffect(() => {
     if (!user?.id) return;
@@ -479,5 +536,6 @@ export const useCallSheetUpload = () => {
     fetchRejectionDetails,
     resubmitUpload: resubmitUpload.mutate,
     isResubmitting: resubmitUpload.isPending,
+    updateContact,
   };
 };
