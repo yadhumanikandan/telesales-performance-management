@@ -97,18 +97,14 @@ export const UploadPage: React.FC = () => {
     const sampleData = [
       {
         company_name: 'ABC Trading LLC',
-        contact_person_name: 'John Smith',
         phone_number: '+971501234567',
-        trade_license_number: 'TL-12345',
         city: 'Dubai',
         industry: 'Trading',
         area: 'Business Bay',
       },
       {
         company_name: 'XYZ Services',
-        contact_person_name: 'Jane Doe',
         phone_number: '+971502345678',
-        trade_license_number: 'TL-67890',
         city: 'Abu Dhabi',
         industry: 'Services',
         area: 'Khalifa City',
@@ -122,9 +118,7 @@ export const UploadPage: React.FC = () => {
     // Set column widths
     worksheet['!cols'] = [
       { wch: 20 }, // company_name
-      { wch: 20 }, // contact_person_name
       { wch: 18 }, // phone_number
-      { wch: 18 }, // trade_license_number
       { wch: 12 }, // city
       { wch: 12 }, // industry
       { wch: 15 }, // area
