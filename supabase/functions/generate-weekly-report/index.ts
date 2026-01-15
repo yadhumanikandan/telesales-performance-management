@@ -50,24 +50,24 @@ const handler = async (req: Request): Promise<Response> => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
     // Authenticate the caller
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    if (!authHeader?.startsWith("Bearer ")) {
       return new Response(
         JSON.stringify({ error: "Missing Authorization header" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create client with user's JWT to verify authentication
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
+    // Use service role client for all operations including auth verification
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // Get the JWT token and verify user
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
+      console.error("Auth error:", authError?.message);
       return new Response(
         JSON.stringify({ error: "Invalid or expired token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -75,7 +75,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Verify the user has admin, operations_head, or supervisor role
-    const { data: roleData, error: roleError } = await supabaseAuth
+    const { data: roleData, error: roleError } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
@@ -97,9 +97,6 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     console.log(`Weekly report generation initiated by user ${user.id} with role ${roleData.role}`);
-
-    // Use service role client for privileged operations
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { scheduleId, manual = false } = await req.json();
 
