@@ -1598,6 +1598,7 @@ export type Database = {
         Args: { encrypted_data: string }
         Returns: string
       }
+      find_contact_by_phone: { Args: { phone: string }; Returns: string }
       generate_case_number: { Args: never; Returns: string }
       get_led_team_id: { Args: { _user_id: string }; Returns: string }
       get_own_profile: {

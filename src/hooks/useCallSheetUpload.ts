@@ -775,16 +775,16 @@ export const useCallSheetUpload = () => {
           
           if (insertError) {
             if (insertError.code === '23505') {
-              // Duplicate phone number - find existing contact and still add to call list
-              const { data: existingContact } = await supabase
-                .from('master_contacts')
-                .select('id, current_owner_agent_id')
-                .eq('phone_number', c.phoneNumber)
-                .maybeSingle();
+              // Duplicate phone number - use security definer function to find existing contact
+              const { data: existingContactId, error: findError } = await supabase
+                .rpc('find_contact_by_phone', { phone: c.phoneNumber });
               
-              if (existingContact) {
+              if (!findError && existingContactId) {
                 // Add to call list regardless of owner - agents can call any contact
-                existingContactIds.push(existingContact.id);
+                existingContactIds.push(existingContactId);
+                console.log(`Found existing contact ${existingContactId} for phone ${c.phoneNumber}`);
+              } else {
+                console.error('Error finding existing contact:', findError);
               }
             } else {
               console.error('Error inserting contact:', insertError);
