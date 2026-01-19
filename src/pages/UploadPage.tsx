@@ -218,34 +218,46 @@ export const UploadPage: React.FC = () => {
     );
 
     if (!validTypes.includes(file.type) && !hasValidExtension) {
-      alert('Please upload a valid Excel (.xlsx, .xls) or CSV file');
+      toast.error('Please upload a valid Excel (.xlsx, .xls) or CSV file');
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB');
+      toast.error('File size must be less than 10MB');
       return;
     }
 
-    // Check for duplicate uploads
-    const existingUploads = await checkDuplicateUpload(file.name);
-    
-    setSelectedFile(file);
-    const result = await processFile(file);
-    
-    // If duplicates found, show warning dialog instead of auto-submitting
-    if (existingUploads.length > 0 && result && result.validEntries > 0) {
-      setDuplicateUploads(existingUploads);
-      setPendingFile(file);
-      setPendingValidation(result);
-      setDuplicateWarningOpen(true);
-      return;
-    }
-    
-    // Auto-submit if there are valid entries and no duplicate
-    if (result && result.validEntries > 0) {
-      submitUpload({ file, validationResult: result });
+    try {
+      // Check for duplicate uploads across all agents
+      const existingUploads = await checkDuplicateUpload(file.name);
+      
+      setSelectedFile(file);
+      const result = await processFile(file);
+      
+      // If processing failed or returned null, stop here
+      if (!result) {
+        setSelectedFile(null);
+        return;
+      }
+      
+      // If duplicates found, show warning dialog instead of auto-submitting
+      if (existingUploads.length > 0 && result.validEntries > 0) {
+        setDuplicateUploads(existingUploads);
+        setPendingFile(file);
+        setPendingValidation(result);
+        setDuplicateWarningOpen(true);
+        return;
+      }
+      
+      // Auto-submit if there are valid entries and no duplicate
+      if (result.validEntries > 0) {
+        submitUpload({ file, validationResult: result });
+        setSelectedFile(null);
+      }
+    } catch (error) {
+      console.error('File processing error:', error);
       setSelectedFile(null);
+      // Error toast is already shown by processFile
     }
   };
 
