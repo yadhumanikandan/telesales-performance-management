@@ -36,14 +36,15 @@ export interface UseTeamActivityOptions {
 }
 
 export function useTeamActivityMonitor({ teamId, refreshInterval = 30000 }: UseTeamActivityOptions = {}) {
-  const { user, userRole, ledTeamId } = useAuth();
+  const { user, userRole, ledTeamId, profile } = useAuth();
   
   const canSeeAllTeams = ['admin', 'super_admin', 'operations_head'].includes(userRole || '');
-  const effectiveTeamId = teamId || (!canSeeAllTeams ? ledTeamId : undefined);
+  // For supervisors: use teamId prop, ledTeamId, or their own team_id
+  const effectiveTeamId = teamId || ledTeamId || (!canSeeAllTeams ? profile?.team_id : undefined);
 
-  // Fetch team members
+  // Fetch team members - always filter by team for non-admins
   const { data: teamMembers = [], isLoading: membersLoading } = useQuery({
-    queryKey: ['team-members-activity', effectiveTeamId, user?.id],
+    queryKey: ['team-members-activity', effectiveTeamId, user?.id, canSeeAllTeams],
     queryFn: async () => {
       let query = supabase
         .from('profiles')
@@ -51,8 +52,13 @@ export function useTeamActivityMonitor({ teamId, refreshInterval = 30000 }: UseT
         .eq('is_active', true);
       
       if (effectiveTeamId) {
+        // Filter by specific team
         query = query.eq('team_id', effectiveTeamId);
+      } else if (!canSeeAllTeams && user?.id) {
+        // Supervisor fallback: get agents they directly supervise
+        query = query.eq('supervisor_id', user.id);
       }
+      // Admin/super_admin/ops_head with no teamId selected sees all
       
       const { data, error } = await query;
       if (error) throw error;
