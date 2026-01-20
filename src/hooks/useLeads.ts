@@ -134,11 +134,66 @@ export const useLeads = (statusFilter?: LeadStatus | 'all') => {
           const { data: teamMembers } = await supabase
             .from('profiles')
             .select('id')
-            .eq('team_id', teamIdToFetch);
+            .eq('team_id', teamIdToFetch)
+            .eq('is_active', true);
 
           if (teamMembers && teamMembers.length > 0) {
             teamMemberIds = teamMembers.map(m => m.id);
+            // Also include the current user (team leader/supervisor) in case they have leads
+            if (!teamMemberIds.includes(user?.id || '')) {
+              teamMemberIds.push(user?.id || '');
+            }
           }
+        }
+        
+        // For admins/super_admins without a specific team, show all leads
+        if ((userRole === 'admin' || userRole === 'super_admin') && !teamIdToFetch) {
+          // Fetch all leads by not filtering by agent_id
+          const query = supabase
+            .from('leads')
+            .select(`
+              *,
+              master_contacts (
+                company_name,
+                contact_person_name,
+                phone_number,
+                trade_license_number,
+                city,
+                industry
+              )
+            `)
+            .order('created_at', { ascending: false });
+
+          const { data, error } = statusFilter && statusFilter !== 'all'
+            ? await query.eq('lead_status', statusFilter)
+            : await query;
+
+          if (error) throw error;
+
+          return (data || []).map(item => {
+            const tradeLicenseNumber = item.master_contacts?.trade_license_number || null;
+            return {
+              id: item.id,
+              contactId: item.contact_id,
+              agentId: item.agent_id,
+              companyName: item.master_contacts?.company_name || 'Unknown',
+              contactPersonName: item.master_contacts?.contact_person_name || 'Unknown',
+              phoneNumber: item.master_contacts?.phone_number || '',
+              tradeLicenseNumber,
+              city: item.master_contacts?.city || null,
+              industry: item.master_contacts?.industry || null,
+              leadStatus: (item.lead_status || 'new') as LeadStatus,
+              leadScore: item.lead_score || 0,
+              leadSource: ((item as any).lead_source || 'account_RAK') as LeadSource,
+              dealValue: item.deal_value,
+              expectedCloseDate: item.expected_close_date,
+              qualifiedDate: item.qualified_date,
+              notes: item.notes,
+              createdAt: item.created_at || '',
+              updatedAt: item.updated_at || '',
+              isLead: !!tradeLicenseNumber,
+            };
+          });
         }
       }
 
