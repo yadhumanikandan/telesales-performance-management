@@ -1,17 +1,15 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useActivitySessionStatus } from '@/hooks/useActivitySessionStatus';
 import { AppSidebar } from './AppSidebar';
-import { Loader2, ShieldAlert, Clock } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useBrowserNotifications } from '@/hooks/useBrowserNotifications';
 import { PerformanceCoachChat } from '@/components/coach/PerformanceCoachChat';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 
 // Pages that don't require an active session
-const EXEMPT_PAGES = ['/activity-monitor', '/settings'];
+const EXEMPT_PAGES = ['/activity-monitor', '/settings', '/login'];
 
 export const DashboardLayout: React.FC = () => {
   const { user, loading } = useAuth();
@@ -22,6 +20,15 @@ export const DashboardLayout: React.FC = () => {
   // Initialize browser notifications subscription
   useBrowserNotifications();
 
+  const currentPath = location.pathname;
+  
+  // Memoize exempt check to prevent re-renders
+  const isExemptPage = useMemo(() => 
+    EXEMPT_PAGES.some(p => currentPath.startsWith(p)),
+    [currentPath]
+  );
+
+  // Show loading state
   if (loading || sessionLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -33,18 +40,14 @@ export const DashboardLayout: React.FC = () => {
     );
   }
 
+  // Redirect to login if not authenticated
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  const currentPath = location.pathname;
-
   // MANDATORY: Redirect to Activity Monitor if session not started
   // Exception: Allow access to activity-monitor itself and settings
-  const isExemptPage = EXEMPT_PAGES.some(p => currentPath.startsWith(p));
-  
   if (!hasStarted && !isExemptPage) {
-    // User has not pressed START WORK - redirect to Activity Monitor
     return <Navigate to="/activity-monitor" replace />;
   }
 
