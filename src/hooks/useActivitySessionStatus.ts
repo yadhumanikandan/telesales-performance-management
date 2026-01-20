@@ -23,11 +23,8 @@ export function useActivitySessionStatus() {
         .maybeSingle();
       
       if (error) {
-        // Don't log transient network errors as they're expected occasionally
-        if (!error.message?.includes('Failed to fetch') && !error.message?.includes('aborted')) {
-          console.error('Error checking session status:', error);
-        }
-        throw error; // Throw to trigger retry
+        console.error('Error checking session status:', error);
+        return { hasStarted: false, isActive: false };
       }
 
       return {
@@ -36,10 +33,8 @@ export function useActivitySessionStatus() {
       };
     },
     enabled: !!user?.id,
-    refetchInterval: 30000, // Check every 30 seconds (reduced from 5s)
-    staleTime: 15000,
-    retry: 2,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+    refetchInterval: 5000, // Check every 5 seconds
+    staleTime: 2000,
   });
 
   return {
