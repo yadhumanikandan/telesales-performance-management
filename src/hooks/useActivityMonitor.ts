@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -116,6 +116,9 @@ export function useActivityMonitor() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
+  
+  // Ref to track if auto-break switch has been triggered for current break period
+  const autoBreakSwitchTriggeredRef = useRef<string | null>(null);
 
   // Update current time every minute
   useEffect(() => {
@@ -287,16 +290,31 @@ export function useActivityMonitor() {
 
   // Auto-switch to break when on scheduled break
   useEffect(() => {
-    if (breakStatus.onBreak && currentActivity?.activity_type !== 'break') {
-      switchActivityMutation.mutate({ 
-        activityType: 'break', 
-        metadata: { 
-          break_label: breakStatus.breakLabel,
-          is_system_enforced: true 
-        } as Record<string, string | boolean>
-      });
+    // Generate a unique key for the current break period
+    const breakKey = breakStatus.onBreak ? `${new Date().toISOString().split('T')[0]}-${breakStatus.breakLabel}` : null;
+    
+    // Skip if not on break, already on break activity, mutation is pending, or already triggered for this break
+    if (!breakStatus.onBreak) {
+      // Reset the ref when not on break so it can trigger again for next break
+      autoBreakSwitchTriggeredRef.current = null;
+      return;
     }
-  }, [breakStatus.onBreak, currentActivity?.activity_type, breakStatus.breakLabel, switchActivityMutation]);
+    
+    if (currentActivity?.activity_type === 'break') return;
+    if (switchActivityMutation.isPending) return;
+    if (autoBreakSwitchTriggeredRef.current === breakKey) return;
+    
+    // Mark this break as triggered to prevent repeated calls
+    autoBreakSwitchTriggeredRef.current = breakKey;
+    
+    switchActivityMutation.mutate({ 
+      activityType: 'break', 
+      metadata: { 
+        break_label: breakStatus.breakLabel,
+        is_system_enforced: true 
+      } as Record<string, string | boolean>
+    });
+  }, [breakStatus.onBreak, breakStatus.breakLabel, currentActivity?.activity_type, switchActivityMutation.isPending]);
 
   // Set up realtime subscription for activity logs
   useEffect(() => {
