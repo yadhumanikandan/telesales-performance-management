@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Shield, AlertTriangle, PhoneMissed, Activity, UserCheck, Bell } from 'lucide-react';
+import { RefreshCw, Shield, AlertTriangle, PhoneMissed, Activity, UserCheck, Bell, BarChart3 } from 'lucide-react';
 import { TeamStatsCards } from '@/components/supervisor/TeamStatsCards';
 import { AgentPerformanceTable } from '@/components/supervisor/AgentPerformanceTable';
 import { UploadApprovalQueue } from '@/components/supervisor/UploadApprovalQueue';
@@ -18,6 +18,7 @@ import { UnansweredCallsReport } from '@/components/supervisor/UnansweredCallsRe
 import { TeamActivityMonitor } from '@/components/supervisor/TeamActivityMonitor';
 import { TeamWorkingStatusPanel } from '@/components/supervisor/TeamWorkingStatusPanel';
 import { SupervisorAlertsPanel } from '@/components/supervisor/SupervisorAlertsPanel';
+import { SupervisorCallVolumeHeatmap } from '@/components/supervisor/SupervisorCallVolumeHeatmap';
 import { useSupervisorData } from '@/hooks/useSupervisorData';
 import { useTeamPerformanceTrends } from '@/hooks/useTeamPerformanceTrends';
 import { useTeamActivityMonitor } from '@/hooks/useTeamActivityMonitor';
@@ -209,6 +210,10 @@ export const SupervisorDashboard: React.FC = () => {
               Live Activity
             </TabsTrigger>
             <TabsTrigger value="trends">Team Trends</TabsTrigger>
+            <TabsTrigger value="heatmap" className="gap-1">
+              <BarChart3 className="w-4 h-4" />
+              Call Heatmap
+            </TabsTrigger>
             <TabsTrigger value="unanswered" className="gap-1">
               <PhoneMissed className="w-4 h-4" />
               Unanswered
@@ -271,6 +276,10 @@ export const SupervisorDashboard: React.FC = () => {
             />
             <TeamConversionAreaChart data={dailyTrends} isLoading={trendsLoading} />
           </div>
+        </TabsContent>
+
+        <TabsContent value="heatmap" className="space-y-6">
+          <SupervisorCallVolumeHeatmap teamId={effectiveTeamId} />
         </TabsContent>
 
         <TabsContent value="unanswered" className="space-y-6">
