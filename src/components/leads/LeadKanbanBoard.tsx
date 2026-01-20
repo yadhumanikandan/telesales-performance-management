@@ -27,7 +27,6 @@ import {
   AlertTriangle,
   ArrowUpCircle,
   Clock,
-  UserCircle,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { getScoreLabel } from '@/hooks/useLeadScoring';
@@ -249,14 +248,6 @@ export const LeadKanbanBoard = ({
                                 </Tooltip>
                               </TooltipProvider>
                             </div>
-
-                            {/* Agent Name */}
-                            {lead.agentName && (
-                              <p className="text-xs text-primary/80 flex items-center gap-1 mt-1 font-medium">
-                                <UserCircle className="w-3 h-3" />
-                                {lead.agentName}
-                              </p>
-                            )}
 
                             {/* Contact */}
                             <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
