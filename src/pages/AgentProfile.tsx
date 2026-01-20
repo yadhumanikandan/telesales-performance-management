@@ -51,6 +51,7 @@ import { TalkTimeProfileCard } from '@/components/profile/TalkTimeProfileCard';
 import { SubmissionForm } from '@/components/profile/SubmissionForm';
 import { SubmissionsTable } from '@/components/profile/SubmissionsTable';
 import { CallbackRemindersPanel } from '@/components/profile/CallbackRemindersPanel';
+import { MyActivityStatus } from '@/components/profile/MyActivityStatus';
 
 const chartConfig = {
   calls: { label: 'Calls', color: 'hsl(var(--primary))' },
@@ -219,6 +220,9 @@ export const AgentProfile: React.FC = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* My Activity Status */}
+      <MyActivityStatus />
 
       {/* Performance Alerts & Callback Reminders */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

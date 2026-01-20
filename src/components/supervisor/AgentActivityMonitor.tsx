@@ -21,7 +21,7 @@ const BREAK_SCHEDULE = {
   lunch: { start: '13:15', end: '14:15', label: 'Lunch' },
   break2: { start: '16:15', end: '16:30', label: 'Break' },
   workEnd: '19:00',
-  workStart: '09:00',
+  workStart: '10:00',
 };
 
 // Convert time string to minutes from midnight
@@ -290,7 +290,7 @@ export const AgentActivityMonitor: React.FC<AgentActivityMonitorProps> = ({ agen
           </div>
           <Progress value={progressPercent} className="h-2" />
           <div className="flex justify-between text-xs text-muted-foreground">
-            <span>9:00 AM</span>
+            <span>10:00 AM</span>
             <div className="flex gap-4">
               <span>Break 11:30</span>
               <span>Lunch 1:15</span>
