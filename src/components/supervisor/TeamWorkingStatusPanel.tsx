@@ -14,6 +14,8 @@ import {
   Clock,
   Play,
   XCircle,
+  Phone,
+  Users,
 } from 'lucide-react';
 import { format, differenceInMinutes } from 'date-fns';
 import { AgentWorkingStatus, TeamWorkingStats } from '@/hooks/useTeamWorkingStatus';
@@ -44,18 +46,29 @@ const getReasonBadge = (status: AgentWorkingStatus) => {
   }
 
   // Not working - determine reason
-  switch (status.endReason) {
+  const endReason = status.endReason || '';
+  
+  // Check for 5-minute auto-logout first
+  if (endReason.startsWith('auto_logout_5min_')) {
+    const activityType = endReason.replace('auto_logout_5min_', '');
+    const label = activityType === 'calling_telecalling' 
+      ? 'Auto Logout – Cold Calling (5 min rule)'
+      : 'Auto Logout – Client Meeting (5 min rule)';
+    return { label, icon: Phone, variant: 'destructive' as const };
+  }
+
+  switch (endReason) {
     case 'auto_logout_missed_confirmations':
-      return { label: 'Auto Logout - Missed Confirmations', icon: AlertTriangle, variant: 'destructive' as const };
+      return { label: 'Auto Logout – Missed Confirmations', icon: AlertTriangle, variant: 'destructive' as const };
     case 'market_visit':
       return { label: 'Market Visit Logout', icon: MapPin, variant: 'warning' as const };
-    case 'manual':
+    case 'manual_logout':
       return { label: 'Manual Logout', icon: LogOut, variant: 'secondary' as const };
     case 'end_of_day':
       return { label: 'End of Day', icon: Clock, variant: 'secondary' as const };
     default:
       if (!status.sessionStartTime) {
-        return { label: 'Not Started', icon: XCircle, variant: 'muted' as const };
+        return { label: 'Logged in – Not Started', icon: Users, variant: 'muted' as const };
       }
       return { label: 'Not Working', icon: UserX, variant: 'destructive' as const };
   }
@@ -138,10 +151,22 @@ export const TeamWorkingStatusPanel: React.FC<TeamWorkingStatusPanelProps> = ({
         <Card className="border-muted bg-muted/20">
           <CardContent className="pt-4 pb-3">
             <div className="flex items-center gap-2">
-              <XCircle className="w-5 h-5 text-muted-foreground" />
+              <Users className="w-5 h-5 text-muted-foreground" />
               <div>
-                <p className="text-2xl font-bold text-muted-foreground">{stats.notStarted}</p>
-                <p className="text-xs text-muted-foreground">Not Started</p>
+                <p className="text-2xl font-bold text-muted-foreground">{stats.loggedInNotStarted}</p>
+                <p className="text-xs text-muted-foreground">Logged In – Not Started</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-destructive/20 bg-destructive/5">
+          <CardContent className="pt-4 pb-3">
+            <div className="flex items-center gap-2">
+              <Phone className="w-5 h-5 text-destructive" />
+              <div>
+                <p className="text-2xl font-bold text-destructive">{stats.fiveMinAutoLogout}</p>
+                <p className="text-xs text-muted-foreground">5-Min Auto Logout</p>
               </div>
             </div>
           </CardContent>

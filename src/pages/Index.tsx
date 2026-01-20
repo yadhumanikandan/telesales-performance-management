@@ -8,7 +8,7 @@ const Index: React.FC = () => {
   const { user, loading } = useAuth();
 
   if (loading) return null;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user) return <Navigate to="/activity-monitor" replace />;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sidebar via-sidebar to-primary/20">
