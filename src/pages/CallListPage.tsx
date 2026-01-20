@@ -64,6 +64,8 @@ import {
   Users,
   BarChart3,
   TrendingUp,
+  List,
+  Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { exportContactsToCSV, exportContactsToExcel, ContactExportData } from '@/utils/contactsExport';
@@ -142,7 +144,9 @@ export const CallListPage: React.FC = () => {
   const [exportTeamId, setExportTeamId] = useState<string>('all');
   const [isLoadingTeamData, setIsLoadingTeamData] = useState(false);
   const [teamCallList, setTeamCallList] = useState<CallListContact[]>([]);
-
+  
+  // View all uploads dialog state
+  const [viewAllUploadsOpen, setViewAllUploadsOpen] = useState(false);
   // Fetch dates that have call list data for current user
   const { data: datesWithData = [] } = useQuery({
     queryKey: ['call-list-dates', profile?.id],
@@ -777,6 +781,20 @@ export const CallListPage: React.FC = () => {
               )}
             </PopoverContent>
           </Popover>
+          {/* View All Uploads Button */}
+          <Button 
+            variant="outline" 
+            className="gap-2"
+            onClick={() => setViewAllUploadsOpen(true)}
+          >
+            <List className="w-4 h-4" />
+            View All Uploads
+            {datesWithData.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {datesWithData.length}
+              </Badge>
+            )}
+          </Button>
           {canExport && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1593,6 +1611,126 @@ export const CallListPage: React.FC = () => {
                 <Download className="w-4 h-4 mr-2" />
               )}
               Export
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* View All Uploads Dialog */}
+      <Dialog open={viewAllUploadsOpen} onOpenChange={setViewAllUploadsOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5" />
+              All Uploaded Call Lists
+            </DialogTitle>
+            <DialogDescription>
+              Browse all dates with uploaded contacts. Click on a date to view that day's call list.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[50vh] pr-4">
+            {datesWithData.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Upload className="w-12 h-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium">No uploads yet</p>
+                <p className="text-sm text-muted-foreground">
+                  Upload a call sheet to get started
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {/* Summary Stats */}
+                <div className="grid grid-cols-3 gap-3 mb-4 p-4 bg-muted rounded-lg">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {datesWithData.length}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Days</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {datesWithData.reduce((sum, d) => sum + d.count, 0)}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Total Contacts</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-primary">
+                      {Math.round(datesWithData.reduce((sum, d) => sum + d.count, 0) / datesWithData.length) || 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">Avg/Day</div>
+                  </div>
+                </div>
+
+                {/* Date List */}
+                <div className="space-y-1">
+                  {datesWithData.map(({ date, count }) => {
+                    const dateObj = new Date(date + 'T00:00:00');
+                    const isSelected = format(selectedDate, 'yyyy-MM-dd') === date;
+                    const isTodayDate = format(new Date(), 'yyyy-MM-dd') === date;
+                    const dayOfWeek = format(dateObj, 'EEEE');
+                    
+                    return (
+                      <Button
+                        key={date}
+                        variant={isSelected ? "secondary" : "ghost"}
+                        className={cn(
+                          "w-full justify-between h-auto py-3 px-4",
+                          isSelected && "ring-2 ring-primary ring-offset-2"
+                        )}
+                        onClick={() => {
+                          setSelectedDate(dateObj);
+                          setViewAllUploadsOpen(false);
+                        }}
+                      >
+                        <div className="flex flex-col items-start gap-1">
+                          <div className="flex items-center gap-2">
+                            <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                            <span className="font-medium">
+                              {format(dateObj, 'MMMM d, yyyy')}
+                            </span>
+                            {isTodayDate && (
+                              <Badge className="bg-primary text-primary-foreground text-xs py-0 h-5">
+                                Today
+                              </Badge>
+                            )}
+                            {isSelected && !isTodayDate && (
+                              <Badge variant="outline" className="text-xs py-0 h-5">
+                                Selected
+                              </Badge>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            {dayOfWeek}
+                          </span>
+                        </div>
+                        <Badge variant="secondary" className="text-sm px-3">
+                          {count} contacts
+                        </Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </ScrollArea>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {datesWithData.length > 0 && !isToday && (
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setSelectedDate(new Date());
+                  setViewAllUploadsOpen(false);
+                }}
+                className="sm:mr-auto"
+              >
+                <CalendarIcon className="w-4 h-4 mr-2" />
+                Go to Today
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setViewAllUploadsOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
