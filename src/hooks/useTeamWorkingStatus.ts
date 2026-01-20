@@ -26,6 +26,8 @@ export interface TeamWorkingStats {
   manualLogout: number;
   onBreak: number;
   notStarted: number;
+  loggedInNotStarted: number; // Logged in but haven't pressed START
+  fiveMinAutoLogout: number; // Cold Calling / Client Meeting 5-min rule
 }
 
 export function useTeamWorkingStatus(teamId?: string) {
@@ -117,9 +119,11 @@ export function useTeamWorkingStatus(teamId?: string) {
     notWorking: teamStatus.filter(a => !a.isWorking).length,
     autoLogout: teamStatus.filter(a => !a.isWorking && a.endReason === 'auto_logout_missed_confirmations').length,
     marketVisit: teamStatus.filter(a => !a.isWorking && a.endReason === 'market_visit').length,
-    manualLogout: teamStatus.filter(a => !a.isWorking && a.endReason === 'manual').length,
+    manualLogout: teamStatus.filter(a => !a.isWorking && a.endReason === 'manual_logout').length,
     onBreak: teamStatus.filter(a => a.isWorking && a.currentActivity === 'break').length,
     notStarted: teamStatus.filter(a => !a.isWorking && !a.endReason && !a.sessionStartTime).length,
+    loggedInNotStarted: teamStatus.filter(a => !a.isWorking && !a.sessionStartTime).length, // Has session row but no start_time
+    fiveMinAutoLogout: teamStatus.filter(a => !a.isWorking && a.endReason?.startsWith('auto_logout_5min_')).length,
   };
 
   return {

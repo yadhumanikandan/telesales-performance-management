@@ -31,7 +31,8 @@ export const LoginForm: React.FC = () => {
 
       if (data.user) {
         toast.success('Welcome back!');
-        navigate('/dashboard');
+        // Always redirect to Activity Monitor first - mandatory flow
+        navigate('/activity-monitor');
       }
     } catch (error) {
       toast.error('An unexpected error occurred');
