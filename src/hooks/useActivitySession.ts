@@ -281,6 +281,8 @@ export function useActivitySession() {
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
     },
     onError: (error) => {
+      // Ignore abort errors
+      if (error?.message?.includes('abort') || error?.name === 'AbortError') return;
       toast.error(`Failed to start session: ${error.message}`);
     },
   });
@@ -364,6 +366,8 @@ export function useActivitySession() {
       queryClient.invalidateQueries({ queryKey: ['activity-logs'] });
     },
     onError: (error) => {
+      // Ignore abort errors
+      if (error?.message?.includes('abort') || error?.name === 'AbortError') return;
       toast.error(`Failed to switch activity: ${error.message}`);
     },
   });
@@ -576,6 +580,8 @@ export function useActivitySession() {
       queryClient.invalidateQueries({ queryKey: ['activity-session'] });
     },
     onError: (error) => {
+      // Ignore abort errors
+      if (error?.message?.includes('abort') || error?.name === 'AbortError') return;
       toast.error(`Failed to confirm activity: ${error.message}`);
     },
   });
@@ -702,6 +708,8 @@ export function useActivitySession() {
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
     },
     onError: (error) => {
+      // Ignore abort errors
+      if (error?.message?.includes('abort') || error?.name === 'AbortError') return;
       toast.error(`Failed to end session: ${error.message}`);
     },
   });
