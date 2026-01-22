@@ -1,9 +1,16 @@
+import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subDays, getDay, getHours } from 'date-fns';
+import { subDays, getDay, getHours, format, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
+import { CalendarIcon } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { DateRange } from 'react-day-picker';
 
 interface SupervisorCallVolumeHeatmapProps {
   teamId?: string;
@@ -21,13 +28,19 @@ const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8 AM to 8 PM
 export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeatmapProps) => {
   const { user, userRole, ledTeamId } = useAuth();
   
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subDays(new Date(), 30),
+    to: new Date(),
+  });
+  
   const canSeeAllData = ['admin', 'super_admin', 'operations_head'].includes(userRole || '');
   const effectiveTeamId = teamId || ledTeamId;
 
   const { data: heatmapData = [], isLoading } = useQuery({
-    queryKey: ['supervisor-call-heatmap', user?.id, effectiveTeamId, canSeeAllData],
+    queryKey: ['supervisor-call-heatmap', user?.id, effectiveTeamId, canSeeAllData, dateRange?.from, dateRange?.to],
     queryFn: async (): Promise<HeatmapData[]> => {
-      const startDate = subDays(new Date(), 30);
+      const startDate = dateRange?.from ? startOfDay(dateRange.from) : subDays(new Date(), 30);
+      const endDate = dateRange?.to ? endOfDay(dateRange.to) : new Date();
       
       // Get agent IDs for team filtering
       let agentIds: string[] | null = null;
@@ -52,7 +65,8 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
       let query = supabase
         .from('call_feedback')
         .select('call_timestamp')
-        .gte('call_timestamp', startDate.toISOString());
+        .gte('call_timestamp', startDate.toISOString())
+        .lte('call_timestamp', endDate.toISOString());
 
       if (agentIds !== null && agentIds.length > 0) {
         query = query.in('agent_id', agentIds);
@@ -122,6 +136,17 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
   // Calculate grand total
   const grandTotal = heatmapData.reduce((sum, d) => sum + d.value, 0);
 
+  // Format date range for display
+  const getDateRangeText = () => {
+    if (dateRange?.from && dateRange?.to) {
+      return `${format(dateRange.from, 'MMM d')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
+    }
+    if (dateRange?.from) {
+      return `From ${format(dateRange.from, 'MMM d, yyyy')}`;
+    }
+    return 'Select date range';
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -139,8 +164,39 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
   return (
     <Card>
       <CardHeader className="pb-2">
-        <CardTitle className="text-lg font-semibold">Call Volume Heatmap</CardTitle>
-        <CardDescription>Team calls by day and hour (last 30 days) • Total: {grandTotal}</CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div>
+            <CardTitle className="text-lg font-semibold">Call Volume Heatmap</CardTitle>
+            <CardDescription>Team calls by day and hour • Total: {grandTotal}</CardDescription>
+          </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className={cn(
+                  "justify-start text-left font-normal",
+                  !dateRange && "text-muted-foreground"
+                )}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {getDateRangeText()}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                initialFocus
+                mode="range"
+                defaultMonth={dateRange?.from}
+                selected={dateRange}
+                onSelect={setDateRange}
+                numberOfMonths={2}
+                disabled={(date) => date > new Date()}
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
