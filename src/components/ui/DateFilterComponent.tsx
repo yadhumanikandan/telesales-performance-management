@@ -42,7 +42,7 @@ export const DateFilterComponent = ({
 }: DateFilterComponentProps) => {
   // State management
   const [selectionMode, setSelectionMode] = useState<'single' | 'range'>('single');
-  const [singleDate, setSingleDate] = useState<Date | null>(new Date());
+  const [singleDate, setSingleDate] = useState<Date | null>(null);
   const [fromDate, setFromDate] = useState<Date | null>(null);
   const [toDate, setToDate] = useState<Date | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string>('all');
@@ -81,17 +81,17 @@ export const DateFilterComponent = ({
     });
   }, [selectionMode, singleDate, fromDate, toDate, selectedAgent, showMonthly, onFilterChange]);
 
-  // Handle mode switch - clear dates when switching
+  // Handle mode switch - clear all dates when switching
   const handleModeChange = (mode: 'single' | 'range') => {
     setSelectionMode(mode);
     if (mode === 'single') {
-      setSingleDate(new Date());
+      setSingleDate(null);
       setFromDate(null);
       setToDate(null);
     } else {
       setSingleDate(null);
-      setFromDate(new Date(new Date().setDate(new Date().getDate() - 7)));
-      setToDate(new Date());
+      setFromDate(null);
+      setToDate(null);
     }
     setDateError(null);
   };
