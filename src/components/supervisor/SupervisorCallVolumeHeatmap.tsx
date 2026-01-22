@@ -235,7 +235,7 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
                 ))}
               </SelectContent>
             </Select>
-            <Popover>
+            <Popover modal={true}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -249,7 +249,7 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
                   {getDateDisplayText()}
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-0 z-50" align="end">
+              <PopoverContent className="w-auto p-0 z-50" align="end" sideOffset={4}>
                 <div className="p-3 border-b">
                   <Tabs value={dateMode} onValueChange={(v) => setDateMode(v as DateMode)}>
                     <TabsList className="grid w-full grid-cols-2">
@@ -261,10 +261,11 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
                 
                 {dateMode === 'single' ? (
                   <Calendar
-                    initialFocus
                     mode="single"
                     selected={singleDate}
-                    onSelect={setSingleDate}
+                    onSelect={(date) => {
+                      setSingleDate(date);
+                    }}
                     disabled={(date) => date > new Date()}
                     className="p-3 pointer-events-auto"
                   />
@@ -314,11 +315,12 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
                       </Button>
                     </div>
                     <Calendar
-                      initialFocus
                       mode="range"
                       defaultMonth={dateRange?.from}
                       selected={dateRange}
-                      onSelect={setDateRange}
+                      onSelect={(range) => {
+                        setDateRange(range);
+                      }}
                       numberOfMonths={2}
                       disabled={(date) => date > new Date()}
                       className="p-3 pointer-events-auto"
