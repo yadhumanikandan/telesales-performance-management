@@ -114,28 +114,33 @@ export const DateFilterComponent = ({
     <div className={cn("flex flex-col gap-4 p-4 bg-card border rounded-lg", className)}>
       {/* Row 1: Mode Toggle + Agent Filter */}
       <div className="flex flex-col lg:flex-row gap-4">
-        {/* Selection Mode Toggle */}
+        {/* Selection Mode Toggle - Radio Buttons */}
         <div className="flex flex-col gap-2">
           <Label className="text-xs font-medium text-muted-foreground">Date Selection Mode</Label>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant={selectionMode === 'single' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleModeChange('single')}
-              className="min-w-[100px]"
-            >
-              Single Day
-            </Button>
-            <Button
-              type="button"
-              variant={selectionMode === 'range' ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => handleModeChange('range')}
-              className="min-w-[100px]"
-            >
-              Date Range
-            </Button>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="dateMode"
+                value="single"
+                checked={selectionMode === 'single'}
+                onChange={() => handleModeChange('single')}
+                className="h-4 w-4 text-primary border-input focus:ring-ring focus:ring-2 accent-primary"
+              />
+              <span className="text-sm">Pick a Single Day</span>
+            </label>
+            
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="radio"
+                name="dateMode"
+                value="range"
+                checked={selectionMode === 'range'}
+                onChange={() => handleModeChange('range')}
+                className="h-4 w-4 text-primary border-input focus:ring-ring focus:ring-2 accent-primary"
+              />
+              <span className="text-sm">Select Date Range (From - To)</span>
+            </label>
           </div>
         </div>
 
