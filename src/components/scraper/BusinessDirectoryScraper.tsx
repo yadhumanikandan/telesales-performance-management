@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { Globe, Loader2, RefreshCw, PhoneCall } from 'lucide-react';
+import { Globe, Loader2, RefreshCw, PhoneCall, X } from 'lucide-react';
 import { firecrawlApi, ExtractedCompany } from '@/lib/api/firecrawl';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -205,6 +205,12 @@ export const BusinessDirectoryScraper = () => {
     }
   };
 
+  const handleClear = () => {
+    setCompanies([]);
+    setSelectedCompanies(new Set());
+    setSourceUrl('');
+    setUrl('');
+  };
 
   return (
     <Card>
@@ -255,18 +261,28 @@ export const BusinessDirectoryScraper = () => {
                   </span>
                 )}
               </div>
-              <Button
-                size="sm"
-                onClick={handleAddToCallList}
-                disabled={selectedCompanies.size === 0 || isAddingToCallList}
-              >
-                {isAddingToCallList ? (
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                ) : (
-                  <PhoneCall className="h-4 w-4 mr-2" />
-                )}
-                Add to Call List
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClear}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Clear
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleAddToCallList}
+                  disabled={selectedCompanies.size === 0 || isAddingToCallList}
+                >
+                  {isAddingToCallList ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <PhoneCall className="h-4 w-4 mr-2" />
+                  )}
+                  Add to Call List
+                </Button>
+              </div>
             </div>
 
             <div className="border rounded-md max-h-[400px] overflow-auto">
