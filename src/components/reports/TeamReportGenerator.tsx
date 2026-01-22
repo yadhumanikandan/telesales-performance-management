@@ -138,10 +138,41 @@ export const TeamReportGenerator: React.FC = () => {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>('week');
   const [isDownloading, setIsDownloading] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
-  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>({
-    from: subDays(new Date(), 7),
-    to: new Date(),
-  });
+  
+  // Draft custom date range (UI selection - NOT pre-populated)
+  const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(undefined);
+  
+  // Applied custom date range (triggers query)
+  const [appliedCustomDateRange, setAppliedCustomDateRange] = useState<DateRange | undefined>(undefined);
+  
+  // Check if custom filter can be applied
+  const canApplyCustomFilter = customDateRange?.from && customDateRange?.to;
+  
+  // Check if custom filter has been applied
+  const hasAppliedCustomFilter = appliedCustomDateRange?.from && appliedCustomDateRange?.to;
+  
+  // Handle apply custom filter
+  const handleApplyCustomFilter = () => {
+    if (customDateRange?.from && customDateRange?.to) {
+      setAppliedCustomDateRange(customDateRange);
+    }
+  };
+  
+  // Handle clear custom filter
+  const handleClearCustomFilter = () => {
+    setCustomDateRange(undefined);
+    setAppliedCustomDateRange(undefined);
+  };
+  
+  // Handle time period change
+  const handleTimePeriodChange = (period: TimePeriod) => {
+    setTimePeriod(period);
+    if (period !== 'custom') {
+      // Clear custom dates when switching away from custom
+      setCustomDateRange(undefined);
+      setAppliedCustomDateRange(undefined);
+    }
+  };
 
   const getDateRange = (period: TimePeriod) => {
     const today = new Date();
@@ -153,10 +184,15 @@ export const TeamReportGenerator: React.FC = () => {
       case 'month':
         return { start: startOfMonth(today), end: endOfMonth(today) };
       case 'custom':
-        return { 
-          start: startOfDay(customDateRange?.from || subDays(today, 7)), 
-          end: endOfDay(customDateRange?.to || today) 
-        };
+        // Use APPLIED custom date range, not draft
+        if (appliedCustomDateRange?.from && appliedCustomDateRange?.to) {
+          return { 
+            start: startOfDay(appliedCustomDateRange.from), 
+            end: endOfDay(appliedCustomDateRange.to) 
+          };
+        }
+        // Return null-like dates if custom not applied
+        return { start: today, end: today };
     }
   };
 
@@ -252,7 +288,7 @@ export const TeamReportGenerator: React.FC = () => {
   };
 
   const { data: reportData, isLoading } = useQuery({
-    queryKey: ['team-report', ledTeamId, timePeriod, customDateRange?.from?.toISOString(), customDateRange?.to?.toISOString(), showComparison],
+    queryKey: ['team-report', ledTeamId, timePeriod, appliedCustomDateRange?.from?.toISOString(), appliedCustomDateRange?.to?.toISOString(), showComparison],
     queryFn: async (): Promise<{ 
       members: TeamMemberReport[]; 
       totals: TeamMemberReport;
@@ -260,6 +296,11 @@ export const TeamReportGenerator: React.FC = () => {
       previousTotals?: TeamMemberReport;
     }> => {
       if (!ledTeamId) return { members: [], totals: getEmptyTotals() };
+      
+      // For custom period, require applied dates
+      if (timePeriod === 'custom' && (!appliedCustomDateRange?.from || !appliedCustomDateRange?.to)) {
+        return { members: [], totals: getEmptyTotals() };
+      }
 
       const { start, end } = getDateRange(timePeriod);
 
@@ -288,7 +329,8 @@ export const TeamReportGenerator: React.FC = () => {
 
       return { members, totals };
     },
-    enabled: !!ledTeamId,
+    // For custom period, only enable query when applied dates exist
+    enabled: !!ledTeamId && (timePeriod !== 'custom' || !!hasAppliedCustomFilter),
   });
 
   const getEmptyTotals = (): TeamMemberReport => ({
@@ -318,8 +360,12 @@ export const TeamReportGenerator: React.FC = () => {
     if (timePeriod === 'today') {
       return format(start, 'MMMM d, yyyy');
     }
-    if (timePeriod === 'custom' && customDateRange?.from && customDateRange?.to) {
-      return `${format(customDateRange.from, 'MMM d')} - ${format(customDateRange.to, 'MMM d, yyyy')}`;
+    // Use APPLIED custom date range for the label
+    if (timePeriod === 'custom' && appliedCustomDateRange?.from && appliedCustomDateRange?.to) {
+      return `${format(appliedCustomDateRange.from, 'MMM d')} - ${format(appliedCustomDateRange.to, 'MMM d, yyyy')}`;
+    }
+    if (timePeriod === 'custom') {
+      return 'Select and apply date range';
     }
     return `${format(start, 'MMM d')} - ${format(end, 'MMM d, yyyy')}`;
   };
@@ -493,7 +539,7 @@ export const TeamReportGenerator: React.FC = () => {
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Select value={timePeriod} onValueChange={(v) => setTimePeriod(v as TimePeriod)}>
+              <Select value={timePeriod} onValueChange={(v) => handleTimePeriodChange(v as TimePeriod)}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -506,42 +552,62 @@ export const TeamReportGenerator: React.FC = () => {
               </Select>
               
               {timePeriod === 'custom' && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "justify-start text-left font-normal",
-                        !customDateRange && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {customDateRange?.from ? (
-                        customDateRange.to ? (
-                          <>
-                            {format(customDateRange.from, "MMM d")} - {format(customDateRange.to, "MMM d, yyyy")}
-                          </>
+                <div className="flex items-center gap-2">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "justify-start text-left font-normal",
+                          !customDateRange && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {customDateRange?.from ? (
+                          customDateRange.to ? (
+                            <>
+                              {format(customDateRange.from, "MMM d")} - {format(customDateRange.to, "MMM d, yyyy")}
+                            </>
+                          ) : (
+                            format(customDateRange.from, "PPP")
+                          )
                         ) : (
-                          format(customDateRange.from, "PPP")
-                        )
-                      ) : (
-                        <span>Pick a date range</span>
-                      )}
+                          <span>Pick a date range</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="range"
+                        defaultMonth={customDateRange?.from || new Date()}
+                        selected={customDateRange}
+                        onSelect={setCustomDateRange}
+                        numberOfMonths={2}
+                        disabled={(date) => date > new Date()}
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  
+                  <Button
+                    size="sm"
+                    onClick={handleApplyCustomFilter}
+                    disabled={!canApplyCustomFilter}
+                  >
+                    Apply
+                  </Button>
+                  
+                  {hasAppliedCustomFilter && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearCustomFilter}
+                    >
+                      Clear
                     </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      initialFocus
-                      mode="range"
-                      defaultMonth={customDateRange?.from}
-                      selected={customDateRange}
-                      onSelect={setCustomDateRange}
-                      numberOfMonths={2}
-                      disabled={(date) => date > new Date()}
-                      className={cn("p-3 pointer-events-auto")}
-                    />
-                  </PopoverContent>
-                </Popover>
+                  )}
+                </div>
               )}
               
               <div className="flex items-center gap-2 border-l pl-2">
@@ -571,6 +637,14 @@ export const TeamReportGenerator: React.FC = () => {
             <div className="space-y-4">
               <Skeleton className="h-24 w-full" />
               <Skeleton className="h-64 w-full" />
+            </div>
+          ) : timePeriod === 'custom' && !hasAppliedCustomFilter ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+              <CalendarIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
+              <h3 className="text-lg font-medium mb-2">Select a Custom Date Range</h3>
+              <p className="text-sm text-muted-foreground max-w-md">
+                Use the date picker above to select your custom date range, then click "Apply" to view the report.
+              </p>
             </div>
           ) : (
             <div className="space-y-6">
