@@ -46,6 +46,11 @@ interface SubmissionRow {
   pending: number;
 }
 
+interface AgentOption {
+  id: string;
+  name: string;
+}
+
 // Available banks from the BANK_GROUPS
 const ALL_BANKS = [...BANK_GROUPS.group1, ...BANK_GROUPS.group2];
 
@@ -54,6 +59,7 @@ export const BankSubmissionReport: React.FC = () => {
   const { teamInfo, isTeamLeader } = useTeamLeaderData();
   const [isDownloading, setIsDownloading] = useState(false);
   const [selectedBank, setSelectedBank] = useState<string>('all');
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
 
   // Filter mode selection
   const [filterMode, setFilterMode] = useState<FilterMode>(null);
@@ -69,6 +75,7 @@ export const BankSubmissionReport: React.FC = () => {
   const [appliedStartDate, setAppliedStartDate] = useState<Date | null>(null);
   const [appliedEndDate, setAppliedEndDate] = useState<Date | null>(null);
   const [appliedBank, setAppliedBank] = useState<string>('all');
+  const [appliedAgent, setAppliedAgent] = useState<string>('all');
 
   const hasAppliedFilter = appliedMode === 'single' 
     ? !!appliedSingleDate 
@@ -82,6 +89,28 @@ export const BankSubmissionReport: React.FC = () => {
       ? !!startDate && !!endDate
       : false;
 
+  // Fetch team agents
+  const { data: teamAgents } = useQuery({
+    queryKey: ['team-agents-for-bank-report', ledTeamId],
+    queryFn: async (): Promise<AgentOption[]> => {
+      if (!ledTeamId) return [];
+
+      const { data: profiles, error } = await supabase
+        .from('profiles_public')
+        .select('id, full_name, username')
+        .eq('team_id', ledTeamId)
+        .eq('is_active', true);
+
+      if (error) throw error;
+
+      return (profiles || []).map(p => ({
+        id: p.id!,
+        name: p.full_name || p.username || 'Unknown',
+      }));
+    },
+    enabled: !!ledTeamId,
+  });
+
   const handleApplyFilter = () => {
     if (filterMode === 'single' && singleDate) {
       setAppliedMode('single');
@@ -89,12 +118,14 @@ export const BankSubmissionReport: React.FC = () => {
       setAppliedStartDate(null);
       setAppliedEndDate(null);
       setAppliedBank(selectedBank);
+      setAppliedAgent(selectedAgent);
     } else if (filterMode === 'range' && startDate && endDate) {
       setAppliedMode('range');
       setAppliedStartDate(startDate);
       setAppliedEndDate(endDate);
       setAppliedSingleDate(null);
       setAppliedBank(selectedBank);
+      setAppliedAgent(selectedAgent);
     }
   };
 
@@ -104,11 +135,13 @@ export const BankSubmissionReport: React.FC = () => {
     setStartDate(null);
     setEndDate(null);
     setSelectedBank('all');
+    setSelectedAgent('all');
     setAppliedMode(null);
     setAppliedSingleDate(null);
     setAppliedStartDate(null);
     setAppliedEndDate(null);
     setAppliedBank('all');
+    setAppliedAgent('all');
   };
 
   const handleChangeFilterType = () => {
@@ -144,6 +177,7 @@ export const BankSubmissionReport: React.FC = () => {
       appliedStartDate?.toISOString(),
       appliedEndDate?.toISOString(),
       appliedBank,
+      appliedAgent,
     ],
     queryFn: async (): Promise<{ rows: SubmissionRow[]; totals: Omit<SubmissionRow, 'date' | 'bankName'> }> => {
       if (!ledTeamId || !hasAppliedFilter) {
@@ -166,7 +200,12 @@ export const BankSubmissionReport: React.FC = () => {
         return { rows: [], totals: { submitted: 0, approved: 0, rejected: 0, pending: 0 } };
       }
 
-      const memberIds = profiles.map(p => p.id);
+      let memberIds = profiles.map(p => p.id);
+
+      // Filter by specific agent if selected
+      if (appliedAgent !== 'all') {
+        memberIds = memberIds.filter(id => id === appliedAgent);
+      }
 
       // Build query for submissions - only for team members
       let query = supabase
@@ -257,6 +296,12 @@ export const BankSubmissionReport: React.FC = () => {
     return 'Select date range';
   };
 
+  const getAgentName = () => {
+    if (appliedAgent === 'all') return 'All Team Members';
+    const agent = teamAgents?.find(a => a.id === appliedAgent);
+    return agent?.name || 'Unknown';
+  };
+
   const downloadPDF = () => {
     if (!reportData || reportData.rows.length === 0) return;
     setIsDownloading(true);
@@ -270,13 +315,16 @@ export const BankSubmissionReport: React.FC = () => {
       doc.setFontSize(16);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(142, 68, 173);
-      doc.text('Bank Submission Report', margin, yPos);
+      doc.text('Team Bank Submission Report', margin, yPos);
       yPos += 8;
 
       doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100, 100, 100);
       doc.text(`${teamInfo?.name || 'Team'} | ${getPeriodLabel()}`, margin, yPos);
+      yPos += 5;
+
+      doc.text(`Agent: ${getAgentName()}`, margin, yPos);
       yPos += 5;
 
       if (appliedBank !== 'all') {
@@ -305,7 +353,7 @@ export const BankSubmissionReport: React.FC = () => {
 
       // Add totals row
       tableData.push([
-        'TOTAL',
+        'TEAM TOTAL',
         appliedBank === 'all' ? 'All Banks' : appliedBank,
         reportData.totals.submitted.toString(),
         reportData.totals.approved.toString(),
@@ -352,7 +400,7 @@ export const BankSubmissionReport: React.FC = () => {
         },
       });
 
-      const fileName = `Bank_Submission_Report_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const fileName = `Team_Bank_Submission_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
       doc.save(fileName);
       toast.success('PDF downloaded successfully');
     } catch (error) {
@@ -383,7 +431,7 @@ export const BankSubmissionReport: React.FC = () => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Building className="h-5 w-5 text-primary" />
-                Bank Submission Report
+                Team Bank Submission Report
               </CardTitle>
               <CardDescription>
                 Date-wise and bank-wise submission status for {teamInfo?.name || 'your team'}
@@ -469,6 +517,21 @@ export const BankSubmissionReport: React.FC = () => {
                       className="w-full px-3 py-2 border border-input rounded-md bg-background text-sm"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Filter by Agent (Optional):</label>
+                    <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Team Members" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Team Members</SelectItem>
+                        {teamAgents?.map(agent => (
+                          <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium mb-2">Filter by Bank (Optional):</label>
@@ -489,6 +552,7 @@ export const BankSubmissionReport: React.FC = () => {
                 {singleDate && (
                   <p className="mt-4 text-sm text-muted-foreground">
                     Selected: {format(singleDate, 'MMMM d, yyyy')}
+                    {selectedAgent !== 'all' && ` | Agent: ${teamAgents?.find(a => a.id === selectedAgent)?.name}`}
                     {selectedBank !== 'all' && ` | Bank: ${selectedBank}`}
                   </p>
                 )}
@@ -571,6 +635,21 @@ export const BankSubmissionReport: React.FC = () => {
                       )}
                     </div>
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Filter by Agent (Optional):</label>
+                    <Select value={selectedAgent} onValueChange={setSelectedAgent}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="All Team Members" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Team Members</SelectItem>
+                        {teamAgents?.map(agent => (
+                          <SelectItem key={agent.id} value={agent.id}>{agent.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium mb-2">Filter by Bank (Optional):</label>
@@ -591,6 +670,7 @@ export const BankSubmissionReport: React.FC = () => {
                 {startDate && endDate && (
                   <p className="mt-4 text-sm text-muted-foreground">
                     Selected: {format(startDate, 'MMM d')} - {format(endDate, 'MMM d, yyyy')}
+                    {selectedAgent !== 'all' && ` | Agent: ${teamAgents?.find(a => a.id === selectedAgent)?.name}`}
                     {selectedBank !== 'all' && ` | Bank: ${selectedBank}`}
                   </p>
                 )}
@@ -617,6 +697,7 @@ export const BankSubmissionReport: React.FC = () => {
                 <span className="font-medium">Showing data for:</span>{' '}
                 <span className="text-muted-foreground">
                   {getPeriodLabel()}
+                  {appliedAgent !== 'all' && ` | Agent: ${getAgentName()}`}
                   {appliedBank !== 'all' && ` | Bank: ${appliedBank}`}
                 </span>
               </div>
@@ -667,7 +748,7 @@ export const BankSubmissionReport: React.FC = () => {
                 </TableBody>
                 <TableFooter>
                   <TableRow className="bg-muted/50 font-bold">
-                    <TableCell colSpan={2}>TOTAL</TableCell>
+                    <TableCell colSpan={2}>TEAM TOTAL</TableCell>
                     <TableCell className="text-center">{reportData.totals.submitted}</TableCell>
                     <TableCell className="text-center text-green-600">{reportData.totals.approved}</TableCell>
                     <TableCell className="text-center text-red-600">{reportData.totals.rejected}</TableCell>
@@ -688,6 +769,7 @@ export const BankSubmissionReport: React.FC = () => {
               <h3 className="text-lg font-medium mb-2">No Submissions Found</h3>
               <p className="text-sm text-muted-foreground">
                 No bank submissions found for the selected date range
+                {appliedAgent !== 'all' && ` and agent (${getAgentName()})`}
                 {appliedBank !== 'all' && ` and bank (${appliedBank})`}.
               </p>
             </div>
