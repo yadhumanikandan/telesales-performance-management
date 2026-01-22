@@ -6,11 +6,12 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subDays, getDay, getHours, format, startOfDay, endOfDay } from 'date-fns';
+import { subDays, getDay, getHours, format, startOfDay, endOfDay, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { DateRange } from 'react-day-picker';
+import { Separator } from '@/components/ui/separator';
 
 interface SupervisorCallVolumeHeatmapProps {
   teamId?: string;
@@ -184,16 +185,61 @@ export const SupervisorCallVolumeHeatmap = ({ teamId }: SupervisorCallVolumeHeat
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 z-50" align="end">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={2}
-                disabled={(date) => date > new Date()}
-                className="p-3 pointer-events-auto"
-              />
+              <div className="flex">
+                <div className="flex flex-col gap-1 p-3 border-r">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Quick Select</p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-xs"
+                    onClick={() => setDateRange({ from: new Date(), to: new Date() })}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-xs"
+                    onClick={() => setDateRange({ from: subDays(new Date(), 6), to: new Date() })}
+                  >
+                    Last 7 Days
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-xs"
+                    onClick={() => setDateRange({ from: subDays(new Date(), 29), to: new Date() })}
+                  >
+                    Last 30 Days
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-xs"
+                    onClick={() => setDateRange({ from: startOfWeek(new Date()), to: endOfWeek(new Date()) })}
+                  >
+                    This Week
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="justify-start text-xs"
+                    onClick={() => setDateRange({ from: startOfMonth(new Date()), to: endOfMonth(new Date()) })}
+                  >
+                    This Month
+                  </Button>
+                </div>
+                <Calendar
+                  initialFocus
+                  mode="range"
+                  defaultMonth={dateRange?.from}
+                  selected={dateRange}
+                  onSelect={setDateRange}
+                  numberOfMonths={2}
+                  disabled={(date) => date > new Date()}
+                  className="p-3 pointer-events-auto"
+                />
+              </div>
             </PopoverContent>
           </Popover>
         </div>
