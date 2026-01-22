@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -6,11 +6,10 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { subDays, getDay, getHours, format, startOfDay, endOfDay } from 'date-fns';
+import { getDay, getHours, format, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { CalendarIcon } from 'lucide-react';
+import { CalendarIcon, ChevronLeft, CalendarRange } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { DateRange } from 'react-day-picker';
 
 interface HeatmapData {
   day: number;
@@ -22,21 +21,114 @@ const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8 AM to 8 PM
 const todayIndex = getDay(new Date()); // Get today's day index (0-6)
 
+type FilterMode = 'single' | 'range';
+
 export const CallVolumeHeatmap = () => {
   const { user, userRole, ledTeamId, profile } = useAuth();
 
-  const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  // Draft filter state (user inputs)
+  const [filterMode, setFilterMode] = useState<FilterMode | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+
+  // Applied filter state (data fetch)
+  const [appliedMode, setAppliedMode] = useState<FilterMode | null>(null);
+  const [appliedSingleDate, setAppliedSingleDate] = useState<Date | null>(null);
+  const [appliedStartDate, setAppliedStartDate] = useState<Date | null>(null);
+  const [appliedEndDate, setAppliedEndDate] = useState<Date | null>(null);
 
   const canSeeAllData = ['admin', 'super_admin', 'operations_head'].includes(userRole || '');
   const effectiveTeamId = ledTeamId || (userRole === 'supervisor' ? profile?.team_id : null);
 
+  const canApplyFilter = useCallback(() => {
+    if (filterMode === 'single') return !!selectedDate;
+    if (filterMode === 'range') return !!startDate && !!endDate;
+    return false;
+  }, [filterMode, selectedDate, startDate, endDate]);
+
+  const hasAppliedFilter = useMemo(() => {
+    if (appliedMode === 'single') return !!appliedSingleDate;
+    if (appliedMode === 'range') return !!appliedStartDate && !!appliedEndDate;
+    return false;
+  }, [appliedMode, appliedSingleDate, appliedStartDate, appliedEndDate]);
+
+  const getAppliedDateLabel = useCallback(() => {
+    if (appliedMode === 'single' && appliedSingleDate) {
+      return format(appliedSingleDate, 'MMM d, yyyy');
+    }
+    if (appliedMode === 'range' && appliedStartDate && appliedEndDate) {
+      return `${format(appliedStartDate, 'MMM d')} - ${format(appliedEndDate, 'MMM d, yyyy')}`;
+    }
+    return null;
+  }, [appliedMode, appliedSingleDate, appliedStartDate, appliedEndDate]);
+
+  const handleApply = useCallback(() => {
+    if (!canApplyFilter() || !filterMode) return;
+
+    setAppliedMode(filterMode);
+
+    if (filterMode === 'single') {
+      setAppliedSingleDate(selectedDate);
+      setAppliedStartDate(null);
+      setAppliedEndDate(null);
+    } else {
+      setAppliedSingleDate(null);
+      setAppliedStartDate(startDate);
+      setAppliedEndDate(endDate);
+    }
+  }, [canApplyFilter, endDate, filterMode, selectedDate, startDate]);
+
+  const handleClearAll = useCallback(() => {
+    setFilterMode(null);
+    setSelectedDate(null);
+    setStartDate(null);
+    setEndDate(null);
+
+    setAppliedMode(null);
+    setAppliedSingleDate(null);
+    setAppliedStartDate(null);
+    setAppliedEndDate(null);
+  }, []);
+
+  const handleChangeFilterType = useCallback(() => {
+    setFilterMode(null);
+    setSelectedDate(null);
+    setStartDate(null);
+    setEndDate(null);
+  }, []);
+
   const { data: heatmapData = [], isLoading } = useQuery({
-    queryKey: ['call-heatmap', user?.id, effectiveTeamId, canSeeAllData, dateRange?.from, dateRange?.to],
+    queryKey: [
+      'call-heatmap',
+      user?.id,
+      effectiveTeamId,
+      canSeeAllData,
+      appliedMode,
+      appliedSingleDate?.toISOString(),
+      appliedStartDate?.toISOString(),
+      appliedEndDate?.toISOString(),
+    ],
     queryFn: async (): Promise<HeatmapData[]> => {
-      if (!dateRange?.from) return [];
-      
-      const startDate = startOfDay(dateRange.from);
-      const endDate = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from);
+      if (!hasAppliedFilter) return [];
+
+      const rangeStart =
+        appliedMode === 'single' && appliedSingleDate
+          ? appliedSingleDate
+          : appliedMode === 'range' && appliedStartDate
+            ? appliedStartDate
+            : null;
+      const rangeEnd =
+        appliedMode === 'single' && appliedSingleDate
+          ? appliedSingleDate
+          : appliedMode === 'range' && appliedEndDate
+            ? appliedEndDate
+            : null;
+
+      if (!rangeStart || !rangeEnd) return [];
+
+      const startDate = startOfDay(rangeStart);
+      const endDate = endOfDay(rangeEnd);
 
       // Get agent IDs for team filtering
       let agentIds: string[] | null = null;
@@ -103,7 +195,7 @@ export const CallVolumeHeatmap = () => {
         return { day, hour, value };
       });
     },
-    enabled: !!user?.id && !!dateRange?.from,
+    enabled: !!user?.id && hasAppliedFilter,
   });
 
   const maxValue = Math.max(...heatmapData.map(d => d.value), 1);
@@ -131,79 +223,210 @@ export const CallVolumeHeatmap = () => {
   };
 
   const grandTotal = heatmapData.reduce((sum, d) => sum + d.value, 0);
-
-  const getDateRangeText = () => {
-    if (dateRange?.from && dateRange?.to) {
-      return `${format(dateRange.from, 'MMM d')} - ${format(dateRange.to, 'MMM d, yyyy')}`;
-    }
-    if (dateRange?.from) {
-      return format(dateRange.from, 'MMM d, yyyy');
-    }
-    return 'Select date range';
-  };
-
-  const hasNoDateSelected = !dateRange?.from;
-
-  if (isLoading) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Call Volume Heatmap</CardTitle>
-          <CardDescription>Loading...</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Skeleton className="h-48 w-full" />
-        </CardContent>
-      </Card>
-    );
-  }
+  const appliedDateLabel = getAppliedDateLabel();
 
   return (
     <Card>
       <CardHeader className="pb-2">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <CardTitle className="text-base font-medium">Call Volume Heatmap</CardTitle>
-            <CardDescription>Calls by day and hour • Total: {grandTotal}</CardDescription>
-          </div>
-          <Popover>
-            <PopoverTrigger asChild>
+        <CardTitle className="text-base font-medium">Call Volume Heatmap</CardTitle>
+        <CardDescription>
+          Calls by day and hour • Total: {grandTotal}
+          {appliedDateLabel ? ` • ${appliedDateLabel}` : ''}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Step 1: Choose filter mode (NO CALENDAR on initial load) */}
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold">Select Date Filter Type</h3>
+
+          {filterMode === null && (
+            <div className="flex flex-col sm:flex-row gap-4 sm:justify-center py-6">
               <Button
                 variant="outline"
-                size="sm"
+                onClick={() => setFilterMode('single')}
                 className={cn(
-                  "justify-start text-left font-normal",
-                  !dateRange && "text-muted-foreground"
+                  'h-auto px-8 py-5 text-sm font-medium border-2 transition-all',
+                  'hover:bg-primary hover:text-primary-foreground hover:-translate-y-0.5'
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
-                {getDateRangeText()}
+                Pick a Single Day
               </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                initialFocus
-                mode="range"
-                defaultMonth={dateRange?.from}
-                selected={dateRange}
-                onSelect={setDateRange}
-                numberOfMonths={2}
-                disabled={(date) => date > new Date()}
-                className={cn("p-3 pointer-events-auto")}
-              />
-            </PopoverContent>
-          </Popover>
+              <Button
+                variant="outline"
+                onClick={() => setFilterMode('range')}
+                className={cn(
+                  'h-auto px-8 py-5 text-sm font-medium border-2 transition-all',
+                  'hover:bg-primary hover:text-primary-foreground hover:-translate-y-0.5'
+                )}
+              >
+                <CalendarRange className="mr-2 h-4 w-4" />
+                Select Date Range (From - To)
+              </Button>
+            </div>
+          )}
+
+          {/* Step 2a: Single date */}
+          {filterMode === 'single' && (
+            <div className="space-y-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleChangeFilterType}
+                className="w-fit gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Change Filter Type
+              </Button>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Select a Single Date:</p>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start text-left font-normal',
+                        !selectedDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {selectedDate ? format(selectedDate, 'PPP') : 'Click here to select a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      initialFocus
+                      mode="single"
+                      selected={selectedDate ?? undefined}
+                      onSelect={(d) => setSelectedDate(d ?? null)}
+                      disabled={(date) => date > new Date()}
+                      className={cn('p-3 pointer-events-auto')}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {selectedDate && (
+                <div className="rounded-md border border-border bg-accent/30 p-3 text-sm text-foreground">
+                  Selected: {selectedDate.toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2b: Range (From / To) */}
+          {filterMode === 'range' && (
+            <div className="space-y-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleChangeFilterType}
+                className="w-fit gap-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Change Filter Type
+              </Button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">From Date:</p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !startDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {startDate ? format(startDate, 'PPP') : 'Select start date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="single"
+                        selected={startDate ?? undefined}
+                        onSelect={(d) => {
+                          const next = d ?? null;
+                          setStartDate(next);
+                          if (next && endDate && endDate < next) {
+                            setEndDate(null);
+                          }
+                        }}
+                        disabled={(date) => date > new Date()}
+                        className={cn('p-3 pointer-events-auto')}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">To Date:</p>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        disabled={!startDate}
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !endDate && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {endDate ? format(endDate, 'PPP') : 'Select end date'}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        initialFocus
+                        mode="single"
+                        selected={endDate ?? undefined}
+                        onSelect={(d) => setEndDate(d ?? null)}
+                        disabled={(date) => {
+                          if (date > new Date()) return true;
+                          if (startDate && date < startDate) return true;
+                          return false;
+                        }}
+                        className={cn('p-3 pointer-events-auto')}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                  {!startDate && (
+                    <p className="text-xs text-muted-foreground">Please select From Date first</p>
+                  )}
+                </div>
+              </div>
+
+              {startDate && endDate && (
+                <div className="rounded-md border border-border bg-accent/30 p-3 text-sm text-foreground">
+                  Selected Range: {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 3: Apply / Clear */}
+          {filterMode !== null && (
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button onClick={handleApply} disabled={!canApplyFilter()} className="sm:w-auto">
+                Apply Filter & Show Data
+              </Button>
+              <Button variant="outline" onClick={handleClearAll} className="sm:w-auto">
+                Clear All & Start Over
+              </Button>
+            </div>
+          )}
         </div>
-      </CardHeader>
-      <CardContent>
-        {hasNoDateSelected ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <CalendarIcon className="h-12 w-12 text-muted-foreground/50 mb-4" />
-            <p className="text-muted-foreground font-medium">Select a date range to view call volume data</p>
-            <p className="text-sm text-muted-foreground/70 mt-1">Use the calendar above to pick a date range</p>
-          </div>
-        ) : (
-        <div className="overflow-x-auto">
+
+        {/* Heatmap only shows after Apply */}
+        {hasAppliedFilter && (
+          isLoading ? (
+            <Skeleton className="h-48 w-full" />
+          ) : (
+            <div className="overflow-x-auto">
           <div className="min-w-[500px]">
             {/* Hour labels */}
             <div className="flex mb-1">
@@ -279,6 +502,7 @@ export const CallVolumeHeatmap = () => {
             </div>
           </div>
         </div>
+          )
         )}
       </CardContent>
     </Card>
