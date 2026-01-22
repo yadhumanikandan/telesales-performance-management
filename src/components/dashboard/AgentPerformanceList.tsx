@@ -46,27 +46,28 @@ export const AgentPerformanceList: React.FC = () => {
     to: endOfMonth(new Date()),
   });
 
-  const canSeeAllAgents = ['admin', 'super_admin', 'operations_head'].includes(userRole || '');
-  const effectiveTeamId = ledTeamId || (userRole === 'supervisor' ? profile?.team_id : null);
+  // All users now scoped to their team only
+  const effectiveTeamId = ledTeamId || profile?.team_id;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['agent-performance-list', user?.id, effectiveTeamId, canSeeAllAgents, dateRange?.from, dateRange?.to],
+    queryKey: ['agent-performance-list', user?.id, effectiveTeamId, dateRange?.from, dateRange?.to],
     queryFn: async () => {
       const startDate = dateRange?.from ? startOfDay(dateRange.from) : startOfMonth(new Date());
       const endDate = dateRange?.to ? endOfDay(dateRange.to) : endOfMonth(new Date());
       const start = startDate.toISOString();
       const end = endDate.toISOString();
 
-      // Get list of agent IDs we can view (for team filtering)
+      // Get list of agent IDs in user's team
       let agentIds: string[] | null = null;
-      if (!canSeeAllAgents && effectiveTeamId) {
+      if (effectiveTeamId) {
         const { data: teamProfiles } = await supabase
           .from('profiles_public')
           .select('id')
           .eq('team_id', effectiveTeamId)
           .eq('is_active', true);
         agentIds = teamProfiles?.map(p => p.id) || [];
-      } else if (!canSeeAllAgents && !effectiveTeamId && user?.id) {
+      } else if (user?.id) {
+        // Fallback to supervised agents if no team
         const { data: supervisedProfiles } = await supabase
           .from('profiles_public')
           .select('id')
